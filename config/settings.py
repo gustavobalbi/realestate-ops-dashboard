@@ -23,7 +23,7 @@ ALLOWED_HOSTS = ["*"] if DEBUG else os.environ.get("DJANGO_ALLOWED_HOSTS", "").s
 # GEMINI_API_KEY powers the natural-language question assistant (negocio/nl_assistant.py).
 # Free tier from https://aistudio.google.com/apikey is enough for a demo.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
 INSTALLED_APPS = [
     "django.contrib.contenttypes",

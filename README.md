@@ -159,14 +159,15 @@ sem cache de perguntas repetidas, sujeito a instabilidade/alta demanda do proved
 (código já faz retry com backoff em erros 5xx transitórios), e o modelo pode ocasionalmente
 gerar SQL que não responde perfeitamente à pergunta — por isso o SQL fica sempre visível.
 
-**Atenção para a demonstração:** a camada gratuita do Gemini para `gemini-2.5-flash` tem
-uma cota de só **20 requisições por dia por projeto** (cada pergunta consome 2: gerar o
-SQL e depois gerar a resposta em texto). Foi o que essa própria bateria de testes
-consumiu. Erros de cota (`429 RESOURCE_EXHAUSTED`) e de sobrecarga (`503`) já aparecem
-como mensagem amigável na tela em vez de derrubar a aplicação, mas vale gerar uma chave
-nova (ou usar um projeto com billing habilitado, que sobe a cota) antes da reunião do
-dia 08/09 para não ficar sem cota durante a apresentação. `GEMINI_MODEL` no `.env`
-permite trocar de modelo sem alterar código.
+**Atenção para a demonstração:** a camada gratuita do Gemini tem cotas diárias baixas por
+projeto/modelo (cada pergunta consome 2 requisições: gerar o SQL e depois gerar a resposta
+em texto), e diferentes modelos têm cotas separadas — por isso o projeto usa
+`gemini-3.1-flash-lite` por padrão (trocado a partir do `gemini-2.5-flash` original depois
+de esgotar a cota dele em testes). Erros de cota (`429 RESOURCE_EXHAUSTED`) e de
+sobrecarga (`503`) já aparecem como mensagem amigável na tela em vez de derrubar a
+aplicação, mas vale confirmar a cota disponível (ou gerar uma chave nova / usar um projeto
+com billing habilitado) antes da reunião do dia 08/09. `GEMINI_MODEL` no `.env` permite
+trocar de modelo sem alterar código.
 
 ## Limitações gerais conhecidas
 
