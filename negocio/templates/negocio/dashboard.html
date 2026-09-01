@@ -1,0 +1,125 @@
+{% extends "negocio/base.html" %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>1. Velocidade de vendas por empreendimento</h2>
+  <p class="premissa">Premissa: velocidade = vendas ativas (líquidas de distrato) / total de unidades
+  ofertadas no empreendimento. Uma venda distratada não é contada, mesmo quando a unidade
+  historicamente não voltou a "Disponível" no cadastro (ver README, seção de qualidade de dados).</p>
+
+  <h3 style="font-size:14px;color:var(--danger);">3 piores desempenhos relativos</h3>
+  <table>
+    <tr><th>Empreendimento</th><th>Unidades ofertadas</th><th>Vendas ativas</th><th>Velocidade</th></tr>
+    {% for v in piores %}
+    <tr>
+      <td>{{ v.empreendimento.nome }} <span class="helptext">({{ v.empreendimento.cidade }}/{{ v.empreendimento.uf }})</span></td>
+      <td>{{ v.total_unidades }}</td>
+      <td>{{ v.vendas_ativas }}</td>
+      <td><span class="badge warn">{{ v.velocidade|floatformat:1 }}%</span></td>
+    </tr>
+    {% endfor %}
+  </table>
+
+  <details style="margin-top:14px;">
+    <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver todos os {{ velocidades|length }} empreendimentos</summary>
+    <table style="margin-top:10px;">
+      <tr><th>Empreendimento</th><th>Unidades ofertadas</th><th>Vendas ativas</th><th>Velocidade</th></tr>
+      {% for v in velocidades %}
+      <tr>
+        <td>{{ v.empreendimento.nome }}</td>
+        <td>{{ v.total_unidades }}</td>
+        <td>{{ v.vendas_ativas }}</td>
+        <td>{{ v.velocidade|floatformat:1 }}%</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </details>
+</div>
+
+<div class="panel">
+  <h2>2. Risco de estouro de custo</h2>
+  <p class="premissa">Premissa: para cada empreendimento, soma-se custo orçado e custo realizado de todas
+  as medições em <code>obra_andamento</code>. Estouro = custo realizado acumulado maior que o orçado
+  acumulado; magnitude = diferença acumulada (R$). Ordenado do maior para o menor estouro.</p>
+  <table>
+    <tr><th>Empreendimento</th><th>Orçado acumulado</th><th>Realizado acumulado</th><th>Magnitude do estouro</th><th>%</th></tr>
+    {% for r in riscos %}
+    <tr>
+      <td>{{ r.empreendimento.nome }}</td>
+      <td>R$ {{ r.custo_orcado|floatformat:2 }}</td>
+      <td>R$ {{ r.custo_realizado|floatformat:2 }}</td>
+      <td><span class="badge warn">R$ {{ r.magnitude|floatformat:2 }}</span></td>
+      <td>{{ r.percentual|floatformat:1 }}%</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">Nenhum empreendimento com estouro de custo identificado.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+
+<div class="grid-2">
+  <div class="panel">
+    <h2>3. Clientes potencialmente duplicados</h2>
+    <p class="premissa">Premissa: dois cadastros são um provável duplicado quando o nome, normalizado
+    (sem acento, minúsculo, espaços colapsados), é idêntico. Regra conservadora — não há CPF/telefone
+    na base para uma checagem mais forte. "Ticket médio" abaixo = receita total das vendas / número
+    de clientes únicos que compraram (não muda a receita, só o denominador ao mesclar duplicados).</p>
+    <div class="grid-3">
+      <div class="stat">
+        <div class="value">{{ duplicidade.registros_duplicados }}</div>
+        <div class="label">registros duplicados</div>
+      </div>
+      <div class="stat">
+        <div class="value">{{ duplicidade.clientes_unicos_bruto }} → {{ duplicidade.clientes_unicos_tratado }}</div>
+        <div class="label">clientes únicos (bruto → tratado)</div>
+      </div>
+      <div class="stat">
+        <div class="value">R$ {{ duplicidade.ticket_medio_bruto|floatformat:0 }} → R$ {{ duplicidade.ticket_medio_tratado|floatformat:0 }}</div>
+        <div class="label">ticket médio/cliente (bruto → tratado)</div>
+      </div>
+    </div>
+    <details style="margin-top:10px;">
+      <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver {{ duplicidade.grupos_duplicados|length }} grupos duplicados</summary>
+      <table style="margin-top:10px;">
+        <tr><th>Nome (normalizado)</th><th>IDs</th></tr>
+        {% for g in duplicidade.grupos_duplicados %}
+        <tr>
+          <td>{{ g.clientes.0.nome }}</td>
+          <td>{% for c in g.clientes %}#{{ c.id }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </table>
+    </details>
+  </div>
+
+  <div class="panel">
+    <h2>4. Financeiro reportado vs. recalculado</h2>
+    <p class="premissa">recalculado = receita_reconhecida − custo_incorrido − despesas_corporativas_rat.
+    Consideramos inconsistente quando |recalculado − reportado| > R$ 0,01.</p>
+    <div class="stat" style="text-align:left;">
+      <div class="value">{{ total_inconsistencias }} <span style="font-size:14px;color:var(--text-dim);">de {{ total_financeiro }} registros verificados</span></div>
+      <div class="label">meses/empreendimentos com resultado reportado ≠ recalculado</div>
+    </div>
+    <table style="margin-top:10px;">
+      <tr><th>Empreendimento</th><th>Mês</th><th>Reportado</th><th>Recalculado</th><th>Diferença</th></tr>
+      {% for i in inconsistencias %}
+      <tr>
+        <td>{{ i.empreendimento.nome }}</td>
+        <td>{{ i.mes_referencia }}</td>
+        <td>R$ {{ i.resultado_reportado|floatformat:2 }}</td>
+        <td>R$ {{ i.resultado_recalculado|floatformat:2 }}</td>
+        <td><span class="badge warn">R$ {{ i.diferenca|floatformat:2 }}</span></td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>Pergunta livre sobre os dados</h2>
+  <p>Use o <a href="{% url 'assistente' %}">assistente em linguagem natural</a> para perguntas não
+  cobertas acima — a resposta vem acompanhada do SQL executado e da tabela de resultados reais.</p>
+</div>
+
+{% endblock %}

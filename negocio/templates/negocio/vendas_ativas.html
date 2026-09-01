@@ -1,0 +1,37 @@
+{% extends "negocio/base.html" %}
+{% block title %}Vendas ativas{% endblock %}
+{% block content %}
+<div class="panel">
+  <h2>Vendas ativas / registrar distrato</h2>
+  <p class="premissa">Ao registrar um distrato, a venda passa para status "Distrato" e a unidade volta
+  para "Disponível", liberada para uma nova venda.</p>
+
+  <form method="get" class="field" style="max-width:360px;">
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar por cliente, unidade ou empreendimento...">
+  </form>
+
+  <table>
+    <tr>
+      <th>Venda</th><th>Empreendimento</th><th>Unidade</th><th>Cliente</th><th>Data</th><th>Valor</th><th></th>
+    </tr>
+    {% for v in vendas %}
+    <tr>
+      <td>#{{ v.id }}</td>
+      <td>{{ v.unidade.empreendimento.nome }}</td>
+      <td>{{ v.unidade.identificador }}</td>
+      <td>{{ v.cliente.nome }}</td>
+      <td>{{ v.data_venda }}</td>
+      <td>R$ {{ v.valor_venda|floatformat:2 }}</td>
+      <td>
+        <form method="post" action="{% url 'distrato' v.id %}" onsubmit="return confirm('Confirmar distrato da venda #{{ v.id }}?');" style="margin:0;">
+          {% csrf_token %}
+          <button type="submit" class="danger">Registrar distrato</button>
+        </form>
+      </td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="7">Nenhuma venda ativa encontrada.</td></tr>
+    {% endfor %}
+  </table>
+</div>
+{% endblock %}

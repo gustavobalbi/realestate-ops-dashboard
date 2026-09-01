@@ -1,0 +1,43 @@
+{% extends "negocio/base.html" %}
+{% block title %}Assistente{% endblock %}
+{% block content %}
+<div class="panel">
+  <h2>Assistente de perguntas em linguagem natural</h2>
+  <p class="premissa">Texto-para-SQL: a pergunta é convertida em uma consulta SQL somente leitura,
+  executada contra o banco real, e a resposta é gerada a partir das linhas retornadas — nunca
+  inventada pelo modelo. O SQL e a tabela de resultados ficam sempre visíveis abaixo para conferência.</p>
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      {{ form.pergunta.label_tag }}
+      {{ form.pergunta }}
+    </div>
+    <button type="submit">Perguntar</button>
+  </form>
+</div>
+
+{% if resultado %}
+<div class="panel">
+  <h2>Resposta</h2>
+  <p style="white-space:pre-wrap;">{{ resultado.resposta }}</p>
+</div>
+
+<div class="panel">
+  <h2>SQL executado</h2>
+  <div class="sql-box">{{ resultado.sql }}</div>
+</div>
+
+<div class="panel">
+  <h2>Resultado bruto ({{ resultado.linhas|length }} linha{{ resultado.linhas|length|pluralize }})</h2>
+  <div style="overflow-x:auto;">
+  <table>
+    <tr>{% for c in resultado.colunas %}<th>{{ c }}</th>{% endfor %}</tr>
+    {% for linha in resultado.linhas %}
+    <tr>{% for valor in linha %}<td>{{ valor }}</td>{% endfor %}</tr>
+    {% endfor %}
+  </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

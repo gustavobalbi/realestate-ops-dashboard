@@ -1,0 +1,40 @@
+{% load static %}<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Cambará{% endblock %} · Cambará Empreendimentos</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+  {% if usuario_logado %}
+  <div class="topbar">
+    <div class="brand">CAMBARÁ <span>· soluções de negócio</span></div>
+    <nav>
+      <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
+      <a href="{% url 'venda_nova' %}" class="{% if request.resolver_match.url_name == 'venda_nova' %}active{% endif %}">Nova venda</a>
+      <a href="{% url 'vendas_ativas' %}" class="{% if request.resolver_match.url_name == 'vendas_ativas' %}active{% endif %}">Vendas ativas / distrato</a>
+      <a href="{% url 'assistente' %}" class="{% if request.resolver_match.url_name == 'assistente' %}active{% endif %}">Assistente (IA)</a>
+    </nav>
+    <div class="user">
+      {{ usuario_logado.nome }} · {{ usuario_logado.papel }}
+      <form action="{% url 'logout' %}" method="post" style="margin:0;">
+        {% csrf_token %}
+        <button type="submit" class="secondary">Sair</button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="container">
+    {% if messages %}
+    <ul class="messages">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>
