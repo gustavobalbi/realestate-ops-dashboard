@@ -1,0 +1,154 @@
+{% extends "negocio/base.html" %}
+{% block title %}Nova venda{% endblock %}
+{% block content %}
+<div class="panel" style="max-width:640px;">
+  <h2>Registrar nova venda</h2>
+  <p class="premissa">Só é possível vincular uma venda a uma unidade com status "Disponível"
+  (a lista abaixo já exclui unidades vendidas, reservadas ou em distrato/cancelado).
+  A regra é reforçada de novo no servidor no momento de gravar.</p>
+
+  <form method="post" id="venda-form">
+    {% csrf_token %}
+
+    <div class="field">
+      <label>Empreendimento</label>
+      <select id="empreendimento_select">
+        <option value="">Selecione...</option>
+        {% for e in empreendimentos %}
+        <option value="{{ e.id }}">{{ e.nome }} ({{ e.cidade }}/{{ e.uf }})</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Unidade disponível</label>
+      <select name="unidade_id" id="unidade_select" required>
+        <option value="">Selecione um empreendimento primeiro...</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>
+        <input type="radio" name="modo_cliente" value="existente" checked> Cliente existente
+        &nbsp;&nbsp;
+        <input type="radio" name="modo_cliente" value="novo"> Novo cliente
+      </label>
+    </div>
+
+    <div id="bloco-cliente-existente" class="field search-box">
+      <label>Buscar cliente por nome</label>
+      <input type="text" id="cliente_busca" autocomplete="off" placeholder="Digite ao menos 2 letras...">
+      <div id="cliente_sugestoes" class="suggestions" style="display:none;"></div>
+      <input type="hidden" name="cliente_id" id="cliente_id">
+      <div class="helptext" id="cliente_selecionado"></div>
+    </div>
+
+    <div id="bloco-cliente-novo" style="display:none;">
+      <div class="field"><label>Nome</label><input type="text" name="cliente_novo_nome"></div>
+      <div class="field"><label>E-mail</label><input type="email" name="cliente_novo_email"></div>
+      <div class="field"><label>Cidade</label><input type="text" name="cliente_novo_cidade"></div>
+      <div class="field"><label>UF</label><input type="text" name="cliente_novo_uf" maxlength="2"></div>
+      <div class="field"><label>Perfil</label><input type="text" name="cliente_novo_perfil" placeholder="Ex.: investidor, morador"></div>
+    </div>
+
+    <div class="field">
+      <label>Valor da venda (R$)</label>
+      <input type="number" step="0.01" name="valor_venda" id="valor_venda" required>
+    </div>
+
+    <div class="field">
+      <label>Forma de pagamento</label>
+      <select name="forma_pagamento">
+        <option value="À vista">À vista</option>
+        <option value="Financiamento">Financiamento</option>
+        <option value="Parcelado Direto">Parcelado Direto</option>
+      </select>
+    </div>
+
+    <div class="field">
+      <label>Data da venda</label>
+      <input type="date" name="data_venda" value="{% now 'Y-m-d' %}" required>
+    </div>
+
+    <button type="submit">Registrar venda</button>
+  </form>
+</div>
+
+<script>
+const empSelect = document.getElementById('empreendimento_select');
+const unidadeSelect = document.getElementById('unidade_select');
+const valorVenda = document.getElementById('valor_venda');
+
+empSelect.addEventListener('change', async () => {
+  unidadeSelect.innerHTML = '<option value="">Carregando...</option>';
+  if (!empSelect.value) {
+    unidadeSelect.innerHTML = '<option value="">Selecione um empreendimento primeiro...</option>';
+    return;
+  }
+  const resp = await fetch(`/api/unidades-disponiveis/?empreendimento_id=${empSelect.value}`);
+  const data = await resp.json();
+  if (data.unidades.length === 0) {
+    unidadeSelect.innerHTML = '<option value="">Nenhuma unidade disponível</option>';
+    return;
+  }
+  unidadeSelect.innerHTML = '<option value="">Selecione...</option>' + data.unidades.map(
+    u => `<option value="${u.id}" data-valor="${u.valor_tabela}">${u.label}</option>`
+  ).join('');
+});
+
+unidadeSelect.addEventListener('change', () => {
+  const opt = unidadeSelect.selectedOptions[0];
+  if (opt && opt.dataset.valor) {
+    valorVenda.value = parseFloat(opt.dataset.valor).toFixed(2);
+  }
+});
+
+// Toggle cliente existente / novo
+document.querySelectorAll('input[name=modo_cliente]').forEach(r => {
+  r.addEventListener('change', () => {
+    const existente = document.querySelector('input[name=modo_cliente]:checked').value === 'existente';
+    document.getElementById('bloco-cliente-existente').style.display = existente ? 'block' : 'none';
+    document.getElementById('bloco-cliente-novo').style.display = existente ? 'none' : 'block';
+    if (!existente) {
+      document.getElementById('cliente_id').value = '';
+      document.getElementById('cliente_selecionado').textContent = '';
+    }
+  });
+});
+
+// Cliente search
+const buscaInput = document.getElementById('cliente_busca');
+const sugestoesBox = document.getElementById('cliente_sugestoes');
+let buscaTimer;
+buscaInput.addEventListener('input', () => {
+  clearTimeout(buscaTimer);
+  const termo = buscaInput.value.trim();
+  if (termo.length < 2) { sugestoesBox.style.display = 'none'; return; }
+  buscaTimer = setTimeout(async () => {
+    const resp = await fetch(`/api/clientes-busca/?q=${encodeURIComponent(termo)}`);
+    const data = await resp.json();
+    if (data.clientes.length === 0) {
+      sugestoesBox.innerHTML = '<div>Nenhum cliente encontrado</div>';
+    } else {
+      sugestoesBox.innerHTML = data.clientes.map(
+        c => `<div data-id="${c.id}" data-label="${c.label}">${c.label}</div>`
+      ).join('');
+    }
+    sugestoesBox.style.display = 'block';
+  }, 250);
+});
+
+sugestoesBox.addEventListener('click', (e) => {
+  const div = e.target.closest('div[data-id]');
+  if (!div) return;
+  document.getElementById('cliente_id').value = div.dataset.id;
+  document.getElementById('cliente_selecionado').textContent = 'Selecionado: ' + div.dataset.label;
+  buscaInput.value = div.dataset.label;
+  sugestoesBox.style.display = 'none';
+});
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.search-box')) sugestoesBox.style.display = 'none';
+});
+</script>
+{% endblock %}
