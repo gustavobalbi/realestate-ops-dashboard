@@ -129,12 +129,37 @@
 </div>
 {% endif %}
 
+<div class="loading-overlay" id="iaLoadingOverlay" hidden>
+  <div class="loading-overlay-msg">
+    <div><span class="spinner"></span> <span id="iaLoadingText">Consultando os dados...</span></div>
+    <p class="loading-overlay-hint" id="iaLoadingHint" hidden>Isso está demorando mais que o
+      esperado (o provedor de IA pode estar sobrecarregado). Você pode continuar esperando ou
+      recarregar a página e tentar de novo.</p>
+  </div>
+</div>
+
 <script>
 document.querySelectorAll('.ia-chip').forEach(chip => {
   chip.addEventListener('click', () => {
     const textarea = document.querySelector('#ia-form textarea');
     textarea.value = chip.dataset.q;
     textarea.focus();
+  });
+});
+
+// Indicador de carregamento: a pergunta pode levar alguns segundos (Gemini + eventual
+// autocorreção de SQL), então mostramos um overlay assim que o formulário é enviado. O
+// envio em si continua um POST normal -- isto é só feedback visual, não muda a lógica. Se
+// demorar demais (provedor de IA lento/sobrecarregado), depois de 15s mostramos uma dica
+// em vez de deixar o usuário olhando pro spinner sem explicação.
+document.querySelectorAll('#ia-form').forEach(form => {
+  form.addEventListener('submit', evt => {
+    if (!form.querySelector('textarea').value.trim()) return;
+    document.getElementById('iaLoadingOverlay').hidden = false;
+    setTimeout(() => {
+      const hint = document.getElementById('iaLoadingHint');
+      if (hint) hint.hidden = false;
+    }, 15000);
   });
 });
 </script>

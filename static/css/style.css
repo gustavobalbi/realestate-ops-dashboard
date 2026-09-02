@@ -537,6 +537,94 @@ button.danger { background: var(--danger); color: white; }
   font-size: 12.5px;
 }
 
+/* --- Indicador de carregamento (reutilizado na página Dados e no Assistente) --- */
+
+.spinner {
+  display: inline-block;
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand-primary);
+  border-radius: 50%;
+  animation: girar 0.7s linear infinite;
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+@keyframes girar { to { transform: rotate(360deg); } }
+
+.loading-overlay[hidden] { display: none; }
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: rgba(247, 245, 240, 0.75);
+  font-family: var(--font-body);
+  font-weight: 600;
+  color: var(--brand-primary);
+}
+.loading-overlay .spinner { width: 22px; height: 22px; border-width: 3px; }
+.loading-overlay-msg { text-align: center; }
+.loading-overlay-hint {
+  margin: 12px 0 0;
+  max-width: 340px;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* --- Dashboard: página Dados (tabelas normalizadas, paginadas) --- */
+
+.dados-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 18px; }
+.dados-tab {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 999px;
+}
+.dados-tab:hover { filter: none; background: var(--panel-2); color: var(--text); }
+.dados-tab.active { background: var(--brand-primary); border-color: var(--brand-primary); color: var(--brand-secondary); }
+
+.dados-loading[hidden] { display: none; }
+.dados-loading {
+  display: flex;
+  align-items: center;
+  padding: 10px 0;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.dados-tabela-info { font-size: 12.5px; color: var(--text-dim); margin: 0 0 10px; }
+.dados-tabela-scroll { overflow-x: auto; }
+.dados-tabela-scroll table { white-space: nowrap; }
+.dados-tabela-scroll th, .dados-tabela-scroll td { font-size: 13px; }
+
+.dados-paginacao {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.dados-pagina-btn {
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 12px;
+  font-size: 12.5px;
+}
+.dados-pagina-btn:disabled { opacity: 0.4; cursor: default; }
+.dados-pagina-btn:disabled:hover { filter: none; }
+.dados-pagina-atual { font-size: 13px; color: var(--text-dim); min-width: 60px; text-align: center; }
+
 /* --- Botão flutuante do assistente de IA --- */
 
 .ia-float {

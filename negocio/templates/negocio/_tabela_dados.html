@@ -1,0 +1,23 @@
+<div class="dados-tabela-wrap" data-tabela="{{ tabela.chave }}" data-pagina="{{ tabela.pagina_atual }}">
+  <p class="dados-tabela-info">{{ tabela.total_linhas }} linha{{ tabela.total_linhas|pluralize }} --
+    página {{ tabela.pagina_atual }} de {{ tabela.total_paginas }}</p>
+  <div class="dados-tabela-scroll">
+    <table>
+      <tr>
+        {% for coluna in tabela.colunas %}<th>{{ coluna }}</th>{% endfor %}
+      </tr>
+      {% for linha in tabela.linhas %}
+      <tr>
+        {% for celula in linha %}<td>{{ celula }}</td>{% endfor %}
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  <div class="dados-paginacao">
+    <button type="button" class="dados-pagina-btn" data-ir-pagina="1" {% if not tabela.tem_anterior %}disabled{% endif %}>« Primeira</button>
+    <button type="button" class="dados-pagina-btn" data-ir-pagina="{{ tabela.pagina_atual|add:"-1" }}" {% if not tabela.tem_anterior %}disabled{% endif %}>‹ Anterior</button>
+    <span class="dados-pagina-atual">{{ tabela.pagina_atual }} / {{ tabela.total_paginas }}</span>
+    <button type="button" class="dados-pagina-btn" data-ir-pagina="{{ tabela.pagina_atual|add:"1" }}" {% if not tabela.tem_proxima %}disabled{% endif %}>Próxima ›</button>
+    <button type="button" class="dados-pagina-btn" data-ir-pagina="{{ tabela.total_paginas }}" {% if not tabela.tem_proxima %}disabled{% endif %}>Última »</button>
+  </div>
+</div>

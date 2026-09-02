@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import analytics, auth, geo, services
+from . import analytics, auth, data_browser, geo, services
 from .forms import LoginForm, NovaVendaForm, PerguntaForm
 from .models import Cliente, Empreendimento, Unidade, Venda
 from .nl_assistant import AssistantError, responder
@@ -204,3 +204,33 @@ def assistente_view(request):
         except AssistantError as exc:
             messages.error(request, str(exc))
     return render(request, "negocio/assistente.html", {"form": form, "resultado": resultado})
+
+
+@auth.login_required
+def dados_view(request):
+    primeira = data_browser.carregar_pagina(data_browser.ORDEM_TABELAS[0], 1)
+    return render(
+        request,
+        "negocio/dados.html",
+        {
+            "tabelas": [
+                (chave, data_browser.TABELAS[chave].titulo) for chave in data_browser.ORDEM_TABELAS
+            ],
+            "tabela_inicial": primeira,
+        },
+    )
+
+
+@auth.login_required
+def dados_tabela_partial_view(request):
+    chave = request.GET.get("tabela", "")
+    if chave not in data_browser.TABELAS:
+        from django.http import HttpResponseBadRequest
+
+        return HttpResponseBadRequest("Tabela desconhecida.")
+    try:
+        pagina = int(request.GET.get("pagina", "1"))
+    except ValueError:
+        pagina = 1
+    tabela = data_browser.carregar_pagina(chave, pagina)
+    return render(request, "negocio/_tabela_dados.html", {"tabela": tabela})
