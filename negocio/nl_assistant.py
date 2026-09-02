@@ -7,7 +7,9 @@ real data, not a model hallucination):
      single read-only SELECT.
   2. The SELECT is validated (single statement, SELECT-only, no write/pragma keywords)
      and run against a *read-only* SQLite connection (opened with mode=ro), independent
-     of Django's connection.
+     of Django's connection. If SQLite rejects it (e.g. a column referenced on the wrong
+     table), the real error message is fed back to Gemini to self-correct, up to
+     MAX_TENTATIVAS_SQL attempts, before giving up and surfacing the error.
   3. The actual result rows are fed back to Gemini, which is instructed to answer using
      only those rows and to say so plainly if they don't answer the question.
 
@@ -52,9 +54,16 @@ vendas(id, unidade_id, cliente_id, data_venda, valor_venda, forma_pagamento, sta
   sistema de origem. data_distrato é a fonte de verdade: uma venda só conta como "ativa" se
   LOWER(TRIM(status_venda)) começar com 'ativa' E data_distrato IS NULL.
 obra_andamento(id, empreendimento_id, mes_referencia, percentual_conclusao,
-  custo_orcado_mes, custo_realizado_mes, observacoes)
+  custo_orcado_mes, custo_realizado_mes, observacoes)  -- acompanhamento de OBRA: orçado vs.
+  realizado, por mês. "Risco/magnitude de estouro de custo" = SUM(custo_realizado_mes) -
+  SUM(custo_orcado_mes) por empreendimento (positivo = estouro). custo_orcado_mes SÓ existe
+  aqui, nunca em financeiro_mensal -- não junte as duas tabelas para essa pergunta, cada uma
+  responde uma pergunta diferente.
 financeiro_mensal(id, empreendimento_id, mes_referencia, receita_reconhecida,
-  custo_incorrido, despesas_corporativas_rat, resultado_reportado)
+  custo_incorrido, despesas_corporativas_rat, resultado_reportado)  -- resultado financeiro
+  CONTÁBIL mensal já fechado (não tem valor orçado). "Resultado recalculado" =
+  receita_reconhecida - custo_incorrido - despesas_corporativas_rat; uma linha é
+  "inconsistente" quando esse valor difere de resultado_reportado (tolerância ~R$0,01).
 usuarios(id, nome, email, papel, senha_hash)  -- nunca selecione senha_hash
 
 Relacionamentos: unidades.empreendimento_id -> empreendimentos.id;
@@ -147,6 +156,9 @@ def _generate(client, prompt: str) -> str:
     ) from last_exc
 
 
+MAX_TENTATIVAS_SQL = 3  # 1 geração inicial + até 2 autocorreções guiadas pelo erro real do SQLite
+
+
 def responder(pergunta: str) -> AssistantAnswer:
     client = _get_client()
 
@@ -160,10 +172,37 @@ def responder(pergunta: str) -> AssistantAnswer:
     sql = _extract_sql(_generate(client, sql_prompt))
     _validate_sql(sql)
 
-    try:
-        colunas, linhas = _run_readonly_query(sql)
-    except sqlite3.Error as exc:
-        raise AssistantError(f"A consulta gerada falhou ao executar: {exc}\nSQL: {sql}") from exc
+    colunas: list[str] = []
+    linhas: list[tuple] = []
+    ultimo_erro: sqlite3.Error | None = None
+    for tentativa in range(MAX_TENTATIVAS_SQL):
+        try:
+            colunas, linhas = _run_readonly_query(sql)
+            ultimo_erro = None
+            break
+        except sqlite3.Error as exc:
+            ultimo_erro = exc
+            if tentativa == MAX_TENTATIVAS_SQL - 1:
+                break
+            correcao_prompt = (
+                f"{SCHEMA_DESCRIPTION}\n\n"
+                f"Pergunta do usuário: {pergunta}\n\n"
+                f"Você gerou esta consulta SQLite:\n{sql}\n\n"
+                f"Ela falhou ao executar no banco real com este erro:\n{exc}\n\n"
+                "Gere uma nova consulta SQLite SELECT (ou WITH ... SELECT) corrigida que "
+                "responda à pergunta original, evitando esse erro -- preste atenção em qual "
+                "tabela cada coluna realmente pertence antes de referenciá-la. Não use ponto "
+                "e vírgula. Não explique nada, devolva só o SQL corrigido, em um bloco de "
+                "código."
+            )
+            sql = _extract_sql(_generate(client, correcao_prompt))
+            _validate_sql(sql)
+
+    if ultimo_erro is not None:
+        raise AssistantError(
+            f"A consulta gerada falhou ao executar mesmo após correção automática: "
+            f"{ultimo_erro}\nSQL: {sql}"
+        ) from ultimo_erro
 
     answer_prompt = (
         "Você é um assistente de dados da Cambará Empreendimentos. A consulta SQL abaixo foi "
