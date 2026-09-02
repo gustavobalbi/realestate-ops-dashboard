@@ -174,6 +174,7 @@ class AchadosQualidadeVendas:
     total_vendas: int
     vendas_com_distrato: int
     status_desatualizado: int  # data_distrato preenchida mas status_venda ainda "ativa"
+    distrato_sem_data: int  # status_venda = "distrato" mas data_distrato NULA (achado oposto)
     vendas_ativas: int
 
 
@@ -181,12 +182,39 @@ def achados_qualidade_vendas() -> AchadosQualidadeVendas:
     todas = list(Venda.objects.all())
     com_distrato = [v for v in todas if v.data_distrato]
     desatualizado = [v for v in com_distrato if norm_status_venda(v.status_venda) == "ativa"]
+    sem_data = [
+        v for v in todas if v.data_distrato is None and norm_status_venda(v.status_venda) == "distrato"
+    ]
     ativas = sum(1 for v in todas if venda_esta_ativa(v.status_venda, v.data_distrato))
     return AchadosQualidadeVendas(
         total_vendas=len(todas),
         vendas_com_distrato=len(com_distrato),
         status_desatualizado=len(desatualizado),
+        distrato_sem_data=len(sem_data),
         vendas_ativas=ativas,
+    )
+
+
+@dataclass
+class AchadoCanceladoUnidade:
+    total_cancelado: int  # unidades com status bruto "cancelado" (grafia, não canônico)
+    total_com_venda_distrato: int  # dessas, quantas têm uma venda vinculada com status "distrato"
+
+
+def achado_cancelado_unidade() -> AchadoCanceladoUnidade:
+    """Verifica ao vivo o achado documentado em negocio/normalize.py: toda unidade com
+    status bruto "cancelado" tem uma venda vinculada com status canônico "distrato" -- por
+    isso norm_status_unidade() funde os dois no mesmo bucket "distrato"."""
+    canceladas = [u for u in Unidade.objects.all() if norm_key(u.status) == "cancelado"]
+    com_venda_distrato = sum(
+        1
+        for u in canceladas
+        if any(
+            norm_status_venda(v.status_venda) == "distrato" for v in Venda.objects.filter(unidade=u)
+        )
+    )
+    return AchadoCanceladoUnidade(
+        total_cancelado=len(canceladas), total_com_venda_distrato=com_venda_distrato
     )
 
 
@@ -441,6 +469,54 @@ def contagem_por_status() -> list[StatusEmpreendimento]:
     for i in itens:
         i.largura_pct = (i.total / maior * 100) if maior else 0.0
     return itens
+
+
+@dataclass
+class MediaConclusaoPorStatus:
+    status: str
+    quantidade: int
+    media_percentual: float
+
+
+@dataclass
+class AchadoConclusaoStatus:
+    por_status: list[MediaConclusaoPorStatus]
+    em_obras_ha_mais_de_1_ano: int
+    em_obras_idade_maxima_anos: float
+
+
+def achado_conclusao_vs_status() -> AchadoConclusaoStatus:
+    """Checa se percentual_conclusao (medição mais recente de obra_andamento, ver
+    conclusao_por_empreendimento) tem alguma relação com empreendimentos.status.
+    Achado: não tem -- a média de % é praticamente igual entre status, e o único
+    empreendimento em "Lançamento" (por definição, obra ainda não iniciada) aparece com
+    quase 97% concluído. Por isso a aplicação não usa uma coluna pra validar a outra."""
+    itens = conclusao_por_empreendimento()
+    por_status: dict[str, list[float]] = defaultdict(list)
+    for i in itens:
+        por_status[i.empreendimento.status].append(i.percentual)
+
+    resumo = [
+        MediaConclusaoPorStatus(status, len(pcts), sum(pcts) / len(pcts))
+        for status, pcts in por_status.items()
+    ]
+    resumo.sort(key=lambda r: r.media_percentual, reverse=True)
+
+    hoje = dt.date.today()
+    em_obras = [
+        e
+        for e in Empreendimento.objects.all()
+        if (e.status or "").strip().lower() == "em obras" and e.data_lancamento
+    ]
+    ha_mais_de_1_ano = [e for e in em_obras if (hoje - e.data_lancamento).days > 365]
+    idade_maxima = (
+        max((hoje - e.data_lancamento).days for e in em_obras) / 365.25 if em_obras else 0.0
+    )
+    return AchadoConclusaoStatus(
+        por_status=resumo,
+        em_obras_ha_mais_de_1_ano=len(ha_mais_de_1_ano),
+        em_obras_idade_maxima_anos=idade_maxima,
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -394,6 +394,13 @@
       <strong>e</strong> <code>data_distrato IS NULL</code>: {{ achados_vendas.vendas_ativas }} de
       {{ achados_vendas.total_vendas }} vendas cadastradas.
     </p>
+    <p><strong>Mesmo achado em <code>unidades.status</code>:</strong> as
+      {{ achado_cancelado.total_cancelado }} unidades com status bruto "Cancelado" têm, todas, uma venda
+      vinculada com status canônico "Distrato" ({{ achado_cancelado.total_com_venda_distrato }} de
+      {{ achado_cancelado.total_cancelado }}) — são duas grafias históricas para o mesmo evento, não duas
+      categorias reais, então <code>norm_status_unidade()</code> funde as duas no mesmo bucket "distrato"
+      (ver <code>negocio/normalize.py</code>; visível também como filtro único na tela Dados).
+    </p>
     <p><strong>Velocidade de vendas</strong> = vendas ativas ÷ total de unidades ofertadas, por
       empreendimento.</p>
     <p><strong>Risco de estouro de custo</strong> = soma(custo_realizado_mes) − soma(custo_orcado_mes) em
@@ -430,6 +437,14 @@
       exige <code>status_venda</code> = "ativa" (ver o ícone daquela aba). Na prática as duas definições
       coincidem nesta base: as {{ achados_vendas.status_desatualizado }} linhas com <code>status_venda</code>
       desatualizado têm <code>data_distrato</code> preenchida, então nunca entram aqui de qualquer forma.</p>
+    <p><strong>Achado na direção oposta:</strong> {{ achados_vendas.distrato_sem_data }} linhas têm
+      <code>status_venda</code> canonicamente "distrato", mas <code>data_distrato</code> NULA — aqui o
+      status já está certo, só falta a data (o sistema de origem não registrou quando o distrato aconteceu).
+      Na tela <strong>Dados</strong> (aba Vendas), a coluna STATUS já mostra o resultado da regra acima (não
+      o texto bruto — nas {{ achados_vendas.status_desatualizado }} linhas do primeiro achado ela aparece
+      "DISTRATO" mesmo com o texto bruto dizendo "Ativa"), e a coluna DATA DE DISTRATO mostra "SEM REGISTRO"
+      nas {{ achados_vendas.distrato_sem_data }} linhas deste segundo achado, em vez do "--" genérico
+      (que ali sempre significa "venda ainda ativa").</p>
     <p>Os gráficos de período, forma de pagamento e tipo de unidade somam apenas essas vendas ativas; o
       mapa e os dois primeiros gráficos se re-filtram ao clicar num empreendimento no mapa.</p>
   </div>
@@ -467,6 +482,19 @@
       <code>obra_andamento.custo_realizado_mes</code> nas 562 linhas (diferença zero em todas). Ou seja: o
       "custo incorrido" que entra no recálculo da pergunta 4 já é esse mesmo número, só duplicado em duas
       tabelas -- não há uma inconsistência escondida nessa relação para reportar.</p>
+    <p><strong><code>percentual_conclusao</code> bate com <code>empreendimentos.status</code>?</strong>
+      Investigado e a resposta é não — checagem feita, sem achado sólido: a média de conclusão (medição mais
+      recente por empreendimento) é praticamente igual entre status
+      {% for m in achado_conclusao_status.por_status %}"{{ m.status }}" {{ m.media_percentual|floatformat:1 }}%{% if not forloop.last %}, {% endif %}{% endfor %},
+      sem nenhum padrão que separe uma categoria da outra (o único empreendimento em "Lançamento" — por
+      definição, obra ainda não iniciada — aparece com a maior média das quatro). Por isso esta aplicação não
+      usa <code>percentual_conclusao</code> pra validar/sinalizar nada sobre <code>status</code>. Observação à
+      parte, checada pelo mesmo motivo:
+      {{ achado_conclusao_status.em_obras_ha_mais_de_1_ano }} empreendimentos estão "Em obras" há mais de um
+      ano desde o lançamento (o mais antigo,
+      {{ achado_conclusao_status.em_obras_idade_maxima_anos|floatformat:1 }} anos) — sem um segundo sinal que
+      bata (como o % de conclusão, acima), não dá pra confirmar se é obra realmente parada ou só um projeto
+      grande, então não vira "erro" nem tratamento.</p>
   </div>
 </div>
 

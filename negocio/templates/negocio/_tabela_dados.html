@@ -1,4 +1,46 @@
+{% load negocio_extras %}
 <div class="dados-tabela-wrap" data-tabela="{{ tabela.chave }}" data-pagina="{{ tabela.pagina_atual }}">
+  {% if tabela.filtros %}
+  <form class="dados-filtros">
+    {% for f in tabela.filtros %}
+    <div class="dados-filtro">
+      <label for="filtro-{{ tabela.chave }}-{{ f.chave }}">{{ f.rotulo }}</label>
+      {% if f.tipo == "texto" %}
+      <input type="text" id="filtro-{{ tabela.chave }}-{{ f.chave }}" name="{{ f.chave }}"
+        value="{{ tabela.filtros_valores|dict_get:f.chave }}" placeholder="Buscar...">
+      {% elif f.tipo == "select" or f.tipo == "select_canonico" or f.tipo == "computado" %}
+      <select id="filtro-{{ tabela.chave }}-{{ f.chave }}" name="{{ f.chave }}">
+        <option value="">Todos</option>
+        {% for valor, rotulo in f.opcoes %}
+        <option value="{{ valor }}" {% if tabela.filtros_valores|dict_get:f.chave == valor %}selected{% endif %}>{{ rotulo }}</option>
+        {% endfor %}
+      </select>
+      {% elif f.tipo == "numero" %}
+      <div class="dados-filtro-range">
+        <input type="number" step="any" inputmode="decimal" name="{{ f.chave }}_min"
+          value="{{ f.chave|concat:'_min'|lookup:tabela.filtros_valores }}" placeholder="Mín.">
+        <span>–</span>
+        <input type="number" step="any" inputmode="decimal" name="{{ f.chave }}_max"
+          value="{{ f.chave|concat:'_max'|lookup:tabela.filtros_valores }}" placeholder="Máx.">
+      </div>
+      {% elif f.tipo == "data" %}
+      <div class="dados-filtro-range">
+        <input type="date" name="{{ f.chave }}_de"
+          value="{{ f.chave|concat:'_de'|lookup:tabela.filtros_valores }}">
+        <span>–</span>
+        <input type="date" name="{{ f.chave }}_ate"
+          value="{{ f.chave|concat:'_ate'|lookup:tabela.filtros_valores }}">
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+    <div class="dados-filtro-acoes">
+      <button type="submit">Filtrar</button>
+      {% if tabela.filtros_ativos %}<button type="button" class="dados-filtro-limpar">Limpar</button>{% endif %}
+    </div>
+  </form>
+  {% endif %}
+
   <p class="dados-tabela-info">{{ tabela.total_linhas }} linha{{ tabela.total_linhas|pluralize }} --
     página {{ tabela.pagina_atual }} de {{ tabela.total_paginas }}</p>
   <div class="dados-tabela-scroll">

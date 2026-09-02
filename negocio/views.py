@@ -51,6 +51,8 @@ def dashboard_view(request):
     inconsistencia_periodo = analytics.inconsistencia_por_periodo()
     conclusao_obra = analytics.conclusao_por_empreendimento()
     status_empreendimentos = analytics.contagem_por_status()
+    achado_cancelado = analytics.achado_cancelado_unidade()
+    achado_conclusao_status = analytics.achado_conclusao_vs_status()
 
     context = {
         "chart_velocidade": chart_velocidade,
@@ -76,6 +78,8 @@ def dashboard_view(request):
         "inconsistencia_periodo": inconsistencia_periodo,
         "conclusao_obra": conclusao_obra,
         "status_empreendimentos": status_empreendimentos,
+        "achado_cancelado": achado_cancelado,
+        "achado_conclusao_status": achado_conclusao_status,
     }
     return render(request, "negocio/dashboard.html", context)
 
@@ -232,5 +236,5 @@ def dados_tabela_partial_view(request):
         pagina = int(request.GET.get("pagina", "1"))
     except ValueError:
         pagina = 1
-    tabela = data_browser.carregar_pagina(chave, pagina)
+    tabela = data_browser.carregar_pagina(chave, pagina, request.GET)
     return render(request, "negocio/_tabela_dados.html", {"tabela": tabela})

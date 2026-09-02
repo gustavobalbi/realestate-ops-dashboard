@@ -14,6 +14,30 @@ def com_localizacao(cliente):
     return nome_com_localizacao(cliente)
 
 
+@register.filter
+def dict_get(d, chave):
+    """Busca `chave` num dict a partir do template (ex.: tabela.filtros_valores) -- o
+    Django só resolve dict.chave quando a chave é literal, não uma variável."""
+    if not d:
+        return ""
+    return d.get(chave, "")
+
+
+@register.filter
+def concat(a, b):
+    """Concatena duas strings no template (ex.: pra montar "{{ chave }}_min")."""
+    return f"{a}{b}"
+
+
+@register.filter
+def lookup(chave, d):
+    """Como dict_get, mas com os argumentos invertidos -- útil quando a chave já vem de
+    uma cadeia de filtros (ex.: {{ f.chave|concat:"_min"|lookup:valores }})."""
+    if not d:
+        return ""
+    return d.get(chave, "")
+
+
 @register.simple_tag
 def static_v(path):
     """Like {% static %}, but appends ?v=<mtime> so browsers never serve a stale cached

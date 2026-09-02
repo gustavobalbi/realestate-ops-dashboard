@@ -6,21 +6,38 @@ The source data mixes casing and spelling for the same underlying concept
 rewritten in place -- callers normalize at read time using the helpers below, and new
 rows written by this app (negocio/services.py) always use the canonical spelling.
 
-STATUS_UNIDADE canon: disponivel | reservada | vendida | distrato | cancelado
+STATUS_UNIDADE canon: disponivel | reservada | vendida | distrato
 STATUS_VENDA canon:   ativa | distrato
 
-Finding: every unit with canonical status "cancelado" has a linked sale with canonical
-status "distrato" (verified against the source base), i.e. "cancelado" and "distrato" are
-two different historical spellings for the same outcome: a unit whose sale fell through
-and that was never put back on the market. Both are treated as "not available for sale"
-in analytics. Going forward this app follows the brief's explicit rule instead: a distrato
-returns the unit to "disponivel" so it re-enters the sellable pool.
+Finding (aplicado): toda unidade com status bruto "cancelado" tem uma venda vinculada com
+status canônico "distrato" (verificado contra as 40 linhas da base -- correspondência de
+100%), ou seja, "cancelado" e "distrato" são duas grafias históricas diferentes para o
+mesmo evento: uma venda que caiu e cuja unidade nunca voltou ao estoque disponível no
+cadastro. Diferente das outras grafias inconsistentes deste módulo (que só variam
+maiúscula/acento), aqui a diferença é conceitual, não ortográfica -- por isso
+norm_status_unidade() funde os dois no mesmo bucket canônico "distrato" (não existe mais
+um bucket "cancelado" separado). Isso aparece na tela Dados: uma unidade que vinha da base
+como "Cancelado" é exibida e filtrável como "DISTRATO", igual a qualquer outra. Vai
+"para frente" (novas escritas) a app já seguia a regra do briefing de qualquer forma: todo
+novo distrato devolve a unidade para "disponivel".
 
-Finding: 37 of the 150 vendas rows with a non-null data_distrato still have status_venda
-reading "ativa" (in some casing) -- the system failed to update status_venda when the
-distrato was recorded. data_distrato is treated as authoritative: any row with a distrato
-date is counted as distrato regardless of what status_venda says (see venda_esta_ativa
-below).
+Finding: 37 das linhas de vendas com data_distrato preenchida ainda têm status_venda
+dizendo "ativa" (em alguma grafia) -- o sistema de origem falhou em atualizar esse campo
+ao registrar o distrato. data_distrato é tratado como autoritativo: qualquer linha com
+data de distrato preenchida conta como distrato independente do que status_venda diga (ver
+venda_esta_ativa abaixo). Diferente das outras colunas de status deste módulo (que só
+canonicalizam a GRAFIA do texto bruto), a coluna STATUS de vendas na tela Dados mostra o
+resultado de venda_esta_ativa(), não o texto bruto -- nessas 37 linhas ela já aparece como
+"DISTRATO" mesmo com status_venda dizendo "Ativa" (ver negocio/data_browser.py:
+_status_venda). Não existem duas colunas de status lado a lado -- só uma, já corrigida.
+
+Finding: na direção oposta, 9 linhas de vendas têm status_venda canonicamente "distrato"
+mas data_distrato NULA -- o sistema de origem não registrou quando o distrato aconteceu.
+Diferente do achado anterior, aqui o status já está certo (venda_esta_ativa() retorna
+False de qualquer forma, com ou sem data) -- o problema não é o status estar errado, é a
+data estar faltando. A tela Dados marca isso explicitamente na coluna DATA DE DISTRATO com
+"SEM REGISTRO" em vez do "--" genérico (que nessa coluna, no resto da base, sempre
+significa "venda ainda ativa").
 """
 
 import datetime as dt
@@ -31,7 +48,6 @@ CANONICAL_UNIDADE = {
     "reservada": "Reservada",
     "vendida": "Vendida",
     "distrato": "Distrato",
-    "cancelado": "Cancelado",
 }
 
 CANONICAL_VENDA = {
@@ -44,8 +60,8 @@ CANONICAL_MODELO_NEGOCIO = {
     "spe_incorporadora": "SPE Incorporadora",
 }
 
-# Statuses (already normalized) that make a unit ineligible for a new sale.
-UNIDADE_INDISPONIVEL = {"reservada", "vendida", "distrato", "cancelado"}
+# Statuses (já normalizados) que tornam uma unidade inelegível para uma nova venda.
+UNIDADE_INDISPONIVEL = {"reservada", "vendida", "distrato"}
 
 
 def strip_accents(value: str) -> str:
@@ -62,14 +78,15 @@ def norm_key(value: str | None) -> str:
 
 
 def norm_status_unidade(value: str | None) -> str:
-    """Return the canonical bucket key (e.g. 'vendida') for a raw unidades.status value."""
+    """Return the canonical bucket key (e.g. 'vendida') for a raw unidades.status value.
+
+    "cancelado" funde no bucket "distrato" -- ver o "Finding (aplicado)" no docstring do
+    módulo: são o mesmo evento de negócio, não duas grafias do mesmo texto."""
     key = norm_key(value)
     if key in ("vendida",):
         return "vendida"
-    if key in ("distrato",):
+    if key in ("distrato", "cancelado"):
         return "distrato"
-    if key in ("cancelado",):
-        return "cancelado"
     if key in ("reservada",):
         return "reservada"
     if key in ("disponivel", "disponível"):

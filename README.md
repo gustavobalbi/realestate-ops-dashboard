@@ -99,39 +99,62 @@ devolver `datetime.date` em vez de string crua nessas colunas, o que deixa compa
 agrupamentos por ano/mês mais corretos (antes eram feitos via fatiamento de string, ex.
 `data_venda[:4]`).
 
-**Achado de qualidade de dados:** toda unidade com status canônico `"cancelado"` tem uma
-venda vinculada com status canônico `"distrato"` — ou seja, `"Cancelado"` e `"Distrato"`
-são duas grafias históricas diferentes para o mesmo evento (uma venda que caiu e cuja
-unidade nunca voltou ao estoque disponível no cadastro). Isso significa que,
-historicamente, um distrato **não** devolvia a unidade para "Disponível" na base como
-veio. A camada de escrita desta aplicação segue a regra explícita do briefing em vez do
-padrão histórico: **todo novo distrato devolve a unidade para "Disponível"**, liberando-a
-para uma nova venda.
+**Achado de qualidade de dados (aplicado):** toda unidade com status bruto `"cancelado"`
+(40 linhas) tem uma venda vinculada com status canônico `"distrato"` — correspondência de
+100%. `"Cancelado"` e `"Distrato"` são duas grafias históricas diferentes para o mesmo
+evento (uma venda que caiu e cuja unidade nunca voltou ao estoque disponível no cadastro),
+não duas categorias reais — diferente das outras inconsistências deste projeto (que só
+variam maiúscula/acento), essa é conceitual. Por isso `negocio/normalize.py:
+norm_status_unidade` funde os dois no mesmo bucket canônico `"distrato"` (não existe mais
+um bucket `"cancelado"` separado): na tela **Dados**, uma unidade que veio da base como
+"Cancelado" já aparece e é filtrável como **DISTRATO**, igual a qualquer outra. Isso
+também significa que, historicamente, um distrato **não** devolvia a unidade para
+"Disponível" na base como veio. A camada de escrita desta aplicação segue a regra
+explícita do briefing em vez do padrão histórico: **todo novo distrato devolve a unidade
+para "Disponível"**, liberando-a para uma nova venda.
 
 Verificado também: `unidades.status` e `vendas.status_venda` já são consistentes entre si
 uma vez normalizados (nenhuma unidade "vendida" com venda "distrato" e vice-versa) —
 então a única inconsistência real de estoque é a de `"cancelado"` acima.
 
-**Achado de qualidade de dados:** 37 das linhas originais de `vendas` (as que já vieram
-com `data_distrato` preenchida na base entregue, antes de qualquer distrato registrado
-por esta aplicação) ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o
+**Achado de qualidade de dados:** de todas as `vendas` com `data_distrato` preenchida
+(150 linhas), **37** ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o
 sistema de origem falhou em atualizar esse campo ao registrar o distrato. `data_distrato`
 é tratado como a fonte de verdade (`negocio/normalize.py:venda_esta_ativa`): uma venda com data de
 distrato preenchida sempre conta como distrato, independente do que `status_venda` diga.
 Isso afeta a pergunta 1 (velocidade de vendas) e a listagem de "vendas ativas" na camada
 de escrita — sem essa correção, seria possível tentar registrar um segundo distrato numa
-venda que, por essa lógica, já não está mais ativa.
+venda que, por essa lógica, já não está mais ativa. Na direção oposta, **9** linhas têm
+`status_venda` canonicamente "distrato" mas `data_distrato` **nula** — aqui o status já
+está certo, só falta a data (o sistema de origem não registrou quando aconteceu). Os dois
+achados ficam visíveis na tela **Dados** (aba Vendas), sem duplicar coluna: a coluna
+**STATUS** não mostra o texto bruto, mostra o resultado de `venda_esta_ativa()` — nas 37
+linhas do primeiro achado ela já aparece como "DISTRATO" mesmo com o texto bruto dizendo
+"Ativa" (e é assim que o filtro de Status funciona também, pela mesma regra); e a coluna
+**DATA DE DISTRATO** mostra "SEM REGISTRO" (em vez do "--" genérico, que aqui sempre
+significa "venda ainda ativa") exatamente nas 9 linhas do segundo achado.
 
 **Tratamento de nulos:** auditei `NULL`/string vazia em todas as colunas das 7 tabelas.
 Únicos campos com `NULL` real: `empreendimentos.observacoes` (20 de 22),
 `obra_andamento.observacoes` (537 de 562) — ambos campos de anotação livre, opcionais por
-natureza — e `vendas.data_distrato` (2.062 de 2.216), que é `NULL` precisamente para toda
-venda ainda ativa (é a semântica correta da coluna, não uma lacuna de dado). Não há chave
-estrangeira órfã em nenhuma tabela (`unidades.empreendimento_id`,
+natureza — e `vendas.data_distrato` (2.056 de 2.206), que é `NULL` para toda venda ainda
+ativa mais as 9 linhas do achado acima (data nunca registrada apesar do distrato). Não há
+chave estrangeira órfã em nenhuma tabela (`unidades.empreendimento_id`,
 `vendas.unidade_id`/`cliente_id` sempre resolvem para uma linha existente). Ou seja: nesta
 base, "valores nulos onde não deveriam existir" não se manifesta como um problema à parte
-das duas inconsistências já documentadas acima (o `"cancelado"` de `unidades.status` e o
-`status_venda` desatualizado) — verificação feita, resultado limpo.
+das inconsistências já documentadas acima — verificação feita, resultado limpo.
+
+**Observações sem achado sólido por trás (checadas, não viraram "erro" nem tratamento):**
+17 dos 22 empreendimentos estão com status `"Em obras"` há mais de um ano desde o
+lançamento (o mais antigo, 3,3 anos) — poderia indicar obra parada, mas tentar confirmar
+isso contra `obra_andamento.percentual_conclusao` (medição mais recente por
+empreendimento) não deu nenhum sinal: a média de conclusão é praticamente igual entre
+status ("Concluído" 90,2%, "Em obras" 91,4%, "Suspenso" 91,3%) e o único empreendimento em
+`"Lançamento"` (ainda sem obra iniciada, por definição) aparece com **96,9%** concluído.
+Diferente da coluna de custo (que bate 1:1 com `financeiro_mensal`, achado documentado na
+seção Obra abaixo), `percentual_conclusao` não tem relação nenhuma com
+`empreendimentos.status` nesta base — por isso a aplicação não usa essa coluna pra
+validar/sinalizar nada sobre o status do empreendimento.
 
 ### As 4 perguntas de negócio (premissas adotadas)
 
@@ -229,22 +252,35 @@ formata números com vírgula decimal por padrão, o que quebra CSS/SVG (`height
 ## Página Dados (tabelas normalizadas)
 
 Navegador somente-leitura de todas as tabelas de negócio (todas menos `usuarios`),
-`negocio/data_browser.py`, uma aba por tabela e paginação de 25 linhas (troca de aba/página
-via `fetch` para `/api/dados-tabela/`, com indicador de carregamento -- a mesma
-preocupação de UX do Assistente, ver abaixo). Formato de exibição, aplicado só na hora de
-montar a página (o dado bruto na base não muda, mesma filosofia do resto do app):
+`negocio/data_browser.py`, uma aba por tabela, paginação de 25 linhas e **filtros por
+coluna** (troca de aba/página/filtro via `fetch` para `/api/dados-tabela/`, com indicador
+de carregamento -- a mesma preocupação de UX do Assistente, ver abaixo). Formato de
+exibição, aplicado só na hora de montar a página (o dado bruto na base não muda, mesma
+filosofia do resto do app):
 
 - Toda coluna de texto em maiúsculo e sem acentuação (`negocio/normalize.py:
   maiusculo_sem_acento` -- cedilha e vogais acentuadas viram a letra base).
 - Toda coluna de data formatada `dd/mm/aaaa`; nulo vira `--` (datas, `observacoes` e
-  `data_distrato` de venda ativa).
+  `data_distrato` de venda ativa) ou `SEM REGISTRO` no caso específico de
+  `vendas.data_distrato` quando o status já é distrato mas a data nunca foi registrada
+  (ver achado de qualidade de dados acima).
 - Colunas com mais de uma grafia para o mesmo valor já saem canonicalizadas:
-  `unidades.status` e `vendas.status_venda` (já existiam em `normalize.py`) e agora também
-  `empreendimentos.modelo_negocio` (`norm_modelo_negocio`, novo) -- essa coluna tinha 9
-  grafias distintas para só 2 categorias reais ("Obra por Administração" e "SPE
-  Incorporadora"), achado feito ao montar esta página.
+  `unidades.status` (que também funde `"cancelado"` em `"distrato"`, ver achado acima) e
+  `empreendimentos.modelo_negocio` (`norm_modelo_negocio`) -- essa coluna tinha 9 grafias
+  distintas para só 2 categorias reais ("Obra por Administração" e "SPE Incorporadora"),
+  achado feito ao montar esta página.
+- A coluna STATUS da aba Vendas vai um passo além de canonicalizar grafia: mostra o
+  resultado de `venda_esta_ativa()` (a regra de negócio, não o texto bruto de
+  `status_venda`) -- nas 37 linhas do achado acima ela já aparece "DISTRATO" mesmo com o
+  texto bruto dizendo "Ativa". O filtro de Status segue a mesma regra, então filtrar por
+  "Ativa" já exclui essas 37 linhas.
 - Colunas de chave estrangeira (`empreendimento_id`, `unidade_id`, `cliente_id`) mostram o
   nome/identificador resolvido, não o número bruto, para ficar legível.
+- **Filtros**: cada aba tem um filtro por coluna, de acordo com o tipo dela -- texto (busca
+  por trecho, sem sensibilidade a acento -- mesmo critério do resto do app), seletor
+  (colunas com poucos valores, incluindo as canonicalizadas/computadas), faixa numérica
+  (mín./máx.) e faixa de data (de/até). Seletor e data aplicam na hora; texto e número
+  aplicam ao clicar "Filtrar" ou apertar Enter (evita perder o foco a cada tecla digitada).
 
 ## Autenticação — o que É e o que NÃO é
 

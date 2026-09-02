@@ -92,12 +92,13 @@ unidades(id, empreendimento_id, identificador, tipo, area_privativa_m2, valor_ta
   - area_privativa_m2: área privativa em metros quadrados (m²).
   - valor_tabela: preço de tabela (de venda oficial, R$) daquela unidade -- pode ser
     diferente do valor_venda efetivamente pago (vendas.valor_venda), que reflete o negociado.
-  - status: disponível / reservada / vendida / distrato / cancelado (grafia bem variada:
-    "vendida", "Vendida", "VENDIDA" etc. convivem) -- sempre LOWER(TRIM(status)). "Cancelado"
-    é uma grafia histórica antiga para o mesmo evento que "Distrato" em vendas.status_venda
-    (venda que caiu); a regra de negócio atual da aplicação sempre devolve a unidade para
-    "Disponível" quando um distrato é registrado, mas linhas históricas antigas da base podem
-    não seguir isso.
+  - status: disponível / reservada / vendida / distrato (grafia bem variada: "vendida",
+    "Vendida", "VENDIDA" etc. convivem) -- sempre LOWER(TRIM(status)). O valor bruto
+    "Cancelado" (40 linhas) também existe na base, mas é a MESMA coisa que "Distrato" (uma
+    venda que caiu e cuja unidade nunca voltou ao estoque) -- trate-o como "distrato" em
+    qualquer filtro (ex.: WHERE LOWER(TRIM(status)) IN ('distrato','cancelado')). A regra de
+    negócio atual da aplicação sempre devolve a unidade para "Disponível" quando um
+    distrato é registrado, mas linhas históricas antigas da base podem não seguir isso.
 clientes(id, nome, cidade, uf, perfil, data_cadastro, email)  -- cada linha é uma pessoa ou
   empresa que comprou (ou pode comprar) um imóvel. O e-mail é a chave real de identificação
   do cliente (nomes iguais podem ser pessoas diferentes -- homônimos, não duplicidade).
@@ -113,12 +114,17 @@ vendas(id, unidade_id, cliente_id, data_venda, valor_venda, forma_pagamento, sta
     sistema de origem. data_distrato é a fonte de verdade: uma venda só conta como "ativa"
     (em andamento, não cancelada) se LOWER(TRIM(status_venda)) começar com 'ativa' E
     data_distrato IS NULL. "Distrato" = a venda foi cancelada/desfeita depois de já ter sido
-    fechada (diferente de uma unidade nunca ter sido vendida).
+    fechada (diferente de uma unidade nunca ter sido vendida). Na direção oposta, 9 linhas
+    têm status_venda = "distrato" mas data_distrato NULA -- aí o status já está certo, só
+    falta a data (não conte como "ativa" nesse caso).
 obra_andamento(id, empreendimento_id, mes_referencia, percentual_conclusao,
   custo_orcado_mes, custo_realizado_mes, observacoes)  -- acompanhamento físico-financeiro da
   OBRA, uma linha por empreendimento por mês: o quanto da construção estava pronta e quanto
   se gastou vs. o planejado naquele mês.
-  - percentual_conclusao: % da obra fisicamente concluída até aquele mês (0 a 100).
+  - percentual_conclusao: % da obra fisicamente concluída até aquele mês (0 a 100). Não
+    tem relação com empreendimentos.status nesta base (checado: a média de % é praticamente
+    igual entre "Em obras"/"Concluído"/"Suspenso", e o único "Lançamento" aparece com 96,9%
+    concluído) -- não assuma nem afirme que um diverge do outro.
   - custo_orcado_mes / custo_realizado_mes: custo de construção planejado vs. realmente
     gasto naquele mês (R$). "Risco/magnitude de estouro de custo" =
     SUM(custo_realizado_mes) - SUM(custo_orcado_mes) por empreendimento (positivo =
