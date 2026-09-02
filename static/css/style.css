@@ -222,6 +222,10 @@ button.danger { background: var(--danger); color: white; }
   align-items: flex-start;
   gap: 6px;
   padding-top: 10px;
+  padding-right: 80px; /* espaço pro rótulo (até 18 caracteres) da última barra, que gira
+                           45° a partir do canto superior esquerdo e vaza pra direita/baixo
+                           -- sem isso ele passa da borda do card nos empreendimentos com
+                           nome mais longo. */
   margin-bottom: 82px;
 }
 .chart-vbars .bar-col {
