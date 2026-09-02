@@ -55,6 +55,7 @@ negocio/           app único com toda a lógica de negócio
                    3 mapas do dashboard (empreendimentos, vendas, clientes por estado)
   services.py      camada de escrita: registrar_venda / registrar_distrato
   nl_assistant.py  assistente de linguagem natural (texto-para-SQL com Gemini)
+  data_browser.py  dados agregados da página "Dados" (tabelas normalizadas, paginadas)
   views.py / urls.py / forms.py
   templates/negocio/*.html
   templatetags/negocio_extras.py   filtro de template (nome + cidade/UF)
@@ -62,6 +63,13 @@ static/img/        logo, monograma e foto de fachada da Cambará (gerados/tratad
                     para este teste -- ver seção de identidade visual)
 data_cambara.sqlite3   cópia de trabalho da base fornecida (commitada de propósito,
                         para o avaliador rodar sem precisar copiar o .db original)
+scripts/migrar_para_azure_sql.py   migração opcional SQLite -> Azure SQL Database
+Dockerfile / entrypoint.sh / .dockerignore   imagem para Azure Container Apps (deploy
+                                              opcional, ver "Deploy" -- testados localmente)
+.github/workflows/docker-build.yml   builda e publica a imagem no GitHub Container
+                                      Registry a cada push em master
+startup.sh         comando de inicialização alternativo, se usar Azure App Service em vez
+                   de Container Apps (opcional, ver "Deploy")
 ```
 
 ## Decisões de modelagem e tratamento de dados
@@ -336,3 +344,107 @@ Senha = primeira palavra do `nome` do usuário + `"123"` (definida por `manage.p
 | engenharia@cambara-teste.com.br | engenharia | Engenharia Cambará | Engenharia123 |
 | financeiro@cambara-teste.com.br | financeiro | Financeiro Cambará | Financeiro123 |
 | candidato@cambara-teste.com.br | diretoria | Candidato Avaliador | Candidato123 |
+
+## Deploy (opcional): Azure Container Apps + Azure SQL Database
+
+O teste pede só "rodar localmente" (seção 3 do briefing), então isto é opcional -- um
+plus para quem quiser ver o app publicado, não parte da entrega. Cada peça existe por um
+motivo específico, documentado abaixo.
+
+**Por que não um provedor serverless genérico (ex.: Vercel):** o assistente de IA faz até
+`MAX_TENTATIVAS_SQL` (3) chamadas sequenciais ao Gemini por pergunta e já foi observado
+levando 10-15s numa pergunta só. Funções serverless do tier gratuito costumam ter timeout
+de ~10s (é o caso da Vercel Hobby) -- estourariam exatamente o componente que o briefing
+chama de mais importante.
+
+**Por que Container Apps em vez de App Service:** foi o primeiro caminho tentado, mas a
+criação do App Service (mesmo no tier F1 gratuito) esbarrou num limite de quota de VM da
+assinatura (`Current Limit (Total VMs): 0`) -- reproduzível em mais de uma região, ou
+seja, é restrição da conta, não do recurso. Container Apps usa uma quota diferente da de
+VM clássica e o tier gratuito (bem mais generoso que o F1) normalmente não esbarra nesse
+mesmo limite. `startup.sh`/instruções de App Service continuam no repositório como
+alternativa, caso você consiga aumento de quota depois.
+
+**Por que trocar SQLite por um banco de verdade:** um arquivo SQLite não é seguro para
+servir várias instâncias/requisições concorrentes, e o filesystem de um container não
+persiste entre reinícios. `config/settings.py` já suporta os dois bancos: sem
+`AZURE_SQL_SERVER` definida (dev local) continua tudo em SQLite exatamente como descrito
+acima; com essa variável definida, troca para Azure SQL Database.
+
+**A imagem já foi construída e testada localmente** (`docker build` + `docker run`,
+inclusive confirmando que o driver ODBC fica instalado corretamente e que
+`mssql-django`/`pyodbc` conseguem tentar a conexão -- só falha por não haver um servidor
+de teste real, como esperado).
+
+### Passo a passo
+
+1. **Rode a migração de dados**, uma vez, da sua máquina ou de qualquer máquina com
+   `pyodbc` + "ODBC Driver 18 for SQL Server" instalados (no Windows, `pyodbc` pode pedir
+   o Visual C++ Build Tools para compilar -- se travar nisso, rode este passo de outra
+   máquina/WSL/container):
+   ```bash
+   pip install pyodbc
+   python scripts/migrar_para_azure_sql.py \
+     --server SEUSERVIDOR.database.windows.net \
+     --database SEUBANCO \
+     --admin-user SEUADMIN \
+     --admin-password "SUASENHA" \
+     --readonly-password "outra senha, só para o assistente de IA"
+   ```
+   Isso cria as 7 tabelas de negócio com os dados copiados do `data_cambara.sqlite3`, a
+   função `dbo.noaccent` (equivalente à função Python que o SQLite usa) e um login
+   `assistente_ia` com permissão só de leitura (`db_datareader`) -- o assistente de IA
+   nunca usa as credenciais de leitura/escrita do resto do app.
+2. **Libere o firewall do SQL Server** para "Allow Azure services and resources to
+   access this server" (Networking do recurso SQL Server no portal) -- sem isso o
+   Container App não consegue conectar.
+3. **Publique a imagem** (GitHub Actions já configurado em
+   `.github/workflows/docker-build.yml` -- builda e publica em
+   `ghcr.io/gustavobalbi/realestate-ops-dashboard:latest` a cada push em `master`,
+   gratuito para repositório público, sem precisar de Azure Container Registry). Confira
+   em **Packages** no GitHub que rodou; se o pacote aparecer como privado, troque a
+   visibilidade para público (Package settings) para o Container App puxar sem precisar
+   de credencial de registry.
+4. **Crie o Container App pelo portal**:
+   - **Criar um recurso** → busque "Container App" → **Criar**.
+   - **Básico**: nome do app, sua assinatura/grupo de recursos, região (tente a mesma do
+     SQL Database; se a criação do *Container Apps Environment* também esbarrar em
+     quota, tente outra região aqui também).
+   - **Ambiente do Container Apps**: crie um novo (o wizard cria junto, tier consumo).
+   - **Container**: desmarque a imagem "quickstart" de exemplo. Origem da imagem:
+     **Registro externo do Docker e outros registros**. Imagem e tag:
+     `ghcr.io/gustavobalbi/realestate-ops-dashboard:latest`. Se o pacote estiver privado,
+     preencha usuário (seu usuário do GitHub) e senha (um Personal Access Token com
+     escopo `read:packages`).
+   - **CPU/memória**: o menor perfil listado já serve.
+   - **Variáveis de ambiente** (mesma tela ou depois em Configuração do app já criado):
+     ```
+     AZURE_SQL_SERVER=SEUSERVIDOR.database.windows.net
+     AZURE_SQL_DATABASE=SEUBANCO
+     AZURE_SQL_USER=SEUADMIN
+     AZURE_SQL_PASSWORD=SUASENHA
+     AZURE_SQL_READONLY_USER=assistente_ia
+     AZURE_SQL_READONLY_PASSWORD=outra senha, só para o assistente de IA
+     DJANGO_DEBUG=0
+     DJANGO_SECRET_KEY=<gere uma nova -- nunca a do repositório>
+     DJANGO_ALLOWED_HOSTS=<nome-do-app>.<região>.azurecontainerapps.io
+     GEMINI_API_KEY=<sua chave>
+     GEMINI_MODEL=gemini-3.1-flash-lite
+     ```
+     (o hostname exato só aparece depois do app criado -- pode editar as variáveis de
+     ambiente de novo em seguida, em **Aplicativo do contêiner** > **Variáveis de
+     ambiente**, que gera uma nova revisão).
+   - **Rede**: **Ingresso ativado**, tráfego de **Qualquer lugar**, porta de destino
+     **8000** (a porta que o `gunicorn` expõe no `Dockerfile`).
+   - **Revisar + criar** → **Criar**.
+5. **Depois de criado**, confirme em **Visão geral** que a URL pública responde; se
+   travar na tela de carregamento do login, veja os logs em **Monitoramento** >
+   **Log stream** -- normalmente é variável de ambiente faltando ou o firewall do SQL
+   Server ainda não liberado (passo 2).
+6. **Deploy contínuo**: como a imagem é reconstruída a cada push (passo 3), configure o
+   Container App para puxar `:latest` de novo automaticamente (revisão nova) ou refaça o
+   passo 4 pontando pra tag `latest` sempre que quiser atualizar manualmente.
+
+**Limitações desse caminho** (além das já listadas acima): o script de migração cria as
+tabelas do zero, então rodar de novo apaga e recria tudo (`DROP TABLE`/dados) -- ok para
+o setup inicial, não pensado para sincronizar mudanças feitas localmente depois.
