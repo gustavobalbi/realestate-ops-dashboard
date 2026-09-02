@@ -3,86 +3,134 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-<div class="dash-top">
-
-  <div class="panel map-panel">
-    <h2>Mapa de empreendimentos</h2>
-    <div class="map-stats">
-      <span class="map-stat"><i></i>{{ marcadores|length }} cidades</span>
-      <span class="map-stat"><i></i>{{ total_empreendimentos }} empreendimentos</span>
-    </div>
-    <div class="map-svg-wrap">
-      <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
-        <path class="map-outline" d="{{ mapa_path_d }}"></path>
-        {% for m in marcadores %}
-        {% with n=m.empreendimentos|length %}
-        <g class="map-marker" data-tooltip-id="map-tt-{{ forloop.counter }}" tabindex="0">
-          <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{{ m.raio|floatformat:"2u" }}"></circle>
-          {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="15">{{ n }}</text>{% endif %}
-        </g>
-        {% endwith %}
-        {% endfor %}
-      </svg>
-      <div class="map-tooltip" id="mapTooltip"></div>
-    </div>
+<div class="carousel">
+  <div class="carousel-nav">
+    <button type="button" class="carousel-arrow" data-dir="-1" aria-label="Seção anterior">‹</button>
+    <h2 class="carousel-title" id="carouselTitle">EMPREENDIMENTOS</h2>
+    <button type="button" class="carousel-arrow" data-dir="1" aria-label="Próxima seção">›</button>
   </div>
 
-  <div hidden>
-    {% for m in marcadores %}
-    <div id="map-tt-{{ forloop.counter }}">
-      <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
-      {% for e in m.empreendimentos %}
-      <div class="map-tooltip-item">
-        <span class="map-tooltip-name">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></span>
-        <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }} dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
+  <section class="carousel-slide" data-title="EMPREENDIMENTOS">
+    <div class="dash-top">
+
+      <div class="panel map-panel">
+        <h2>Mapa de empreendimentos</h2>
+        <div class="map-stats">
+          <span class="map-stat"><i></i>{{ marcadores|length }} cidades</span>
+          <span class="map-stat"><i></i>{{ total_empreendimentos }} empreendimentos</span>
+        </div>
+        <div class="map-svg-wrap">
+          <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
+            <path class="map-outline" d="{{ mapa_path_d }}"></path>
+            {% for m in marcadores %}
+            {% with n=m.empreendimentos|length %}
+            <g class="map-marker" data-tooltip-id="map-tt-{{ forloop.counter }}" tabindex="0">
+              <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{{ m.raio|floatformat:"2u" }}"></circle>
+              {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="15">{{ n }}</text>{% endif %}
+            </g>
+            {% endwith %}
+            {% endfor %}
+          </svg>
+          <div class="map-tooltip" id="mapTooltip"></div>
+        </div>
       </div>
-      {% endfor %}
-    </div>
-    {% endfor %}
-  </div>
 
-  <div>
-    <div class="panel">
-      <h2>1. Velocidade de vendas</h2>
-      <p class="premissa">Vendas ativas / unidades ofertadas, por empreendimento. Ordem decrescente da
-      esquerda para a direita; as 3 piores em destaque.</p>
-      <div class="chart-vbars">
-        {% for b in chart_velocidade %}
-        <div class="bar-col{% if b.pior %} pior{% endif %}" title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
-          <div class="bar-fill-area">
-            <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+      <div>
+        <div class="panel">
+          <h2>1. Velocidade de vendas</h2>
+          <p class="premissa">Vendas ativas / unidades ofertadas, por empreendimento. Ordem decrescente da
+          esquerda para a direita; as 3 piores em destaque.</p>
+          <div class="chart-vbars">
+            {% for b in chart_velocidade %}
+            <div class="bar-col{% if b.pior %} pior{% endif %}" title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
+              <div class="bar-fill-area">
+                <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+              </div>
+              <div class="bar-tick"></div>
+              <div class="bar-label"><span>{{ b.item.empreendimento.nome|truncatechars:18 }}</span></div>
+            </div>
+            {% endfor %}
           </div>
-          <div class="bar-tick"></div>
-          <div class="bar-label"><span>{{ b.item.empreendimento.nome|truncatechars:18 }}</span></div>
+          <div class="chart-legend">
+            <span><i style="background:var(--chart-red);"></i>3 piores desempenhos</span>
+          </div>
         </div>
-        {% endfor %}
-      </div>
-      <div class="chart-legend">
-        <span><i style="background:var(--chart-blue);"></i>Velocidade normal</span>
-        <span><i style="background:var(--chart-red);"></i>3 piores desempenhos</span>
-      </div>
-    </div>
 
-    <div class="panel">
-      <h2>2. Risco de estouro de custo</h2>
-      <p class="premissa">Magnitude do estouro (custo realizado − orçado) acumulado, só empreendimentos
-      com estouro. Ordem decrescente de cima para baixo; destaque para os acima da média
-      (R$ {{ media_risco|floatformat:0 }}).</p>
-      <div class="chart-hbars">
-        {% for b in chart_risco %}
-        <div class="bar-row{% if b.acima_da_media %} acima{% endif %}">
-          <div class="label" title="{{ b.item.empreendimento.nome }}">{{ b.item.empreendimento.nome }}</div>
-          <div class="bar-track"><div class="bar-fill" style="width: {{ b.largura_pct|floatformat:"2u" }}%;"></div></div>
-          <div class="value">R$ {{ b.item.magnitude|floatformat:0 }}</div>
+        <div class="panel">
+          <h2>2. Risco de estouro de custo</h2>
+          <p class="premissa">Magnitude do estouro (custo realizado − orçado) acumulado, só empreendimentos
+          com estouro. Ordem decrescente de cima para baixo; destaque para os acima da média
+          (R$ {{ media_risco|floatformat:0 }}).</p>
+          <div class="chart-hbars">
+            {% for b in chart_risco %}
+            <div class="bar-row{% if b.acima_da_media %} acima{% endif %}">
+              <div class="label" title="{{ b.item.empreendimento.nome }}">{{ b.item.empreendimento.nome }}</div>
+              <div class="bar-track"><div class="bar-fill" style="width: {{ b.largura_pct|floatformat:"2u" }}%;"></div></div>
+              <div class="value">R$ {{ b.item.magnitude|floatformat:0 }}</div>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="chart-legend">
+            <span><i style="background:var(--success);"></i>Abaixo da média</span>
+            <span><i style="background:var(--chart-red);"></i>Acima da média</span>
+          </div>
         </div>
-        {% endfor %}
-      </div>
-      <div class="chart-legend">
-        <span><i style="background:var(--chart-blue);"></i>Abaixo da média</span>
-        <span><i style="background:var(--chart-red);"></i>Acima da média</span>
       </div>
     </div>
-  </div>
+  </section>
+
+  <section class="carousel-slide" data-title="VENDAS" hidden>
+    <div class="vendas-filtro" id="vendasFiltro" hidden>
+      Filtrando por <strong id="vendasFiltroNome"></strong>
+      <button type="button" id="vendasFiltroLimpar">Limpar filtro ✕</button>
+    </div>
+    <div class="dash-top">
+
+      <div class="panel map-panel">
+        <h2>Mapa de vendas</h2>
+        <div class="map-stats">
+          <span class="map-stat"><i></i>{{ total_vendas_ativas }} vendas ativas</span>
+        </div>
+        <p class="premissa">Vendas com <code>data_distrato IS NULL</code>. Tamanho do marcador é proporcional
+        ao volume de vendas na cidade. Clique num marcador para fixar a dica de ferramenta e depois clique
+        num empreendimento para filtrar os gráficos ao lado.</p>
+        <div class="map-svg-wrap">
+          <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
+            <path class="map-outline" d="{{ mapa_path_d }}"></path>
+            {% for m in marcadores_vendas %}
+            {% with n=m.empreendimentos|length %}
+            <g class="map-marker vendas-marker" data-tooltip-id="vmap-tt-{{ forloop.counter }}" tabindex="0">
+              <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{{ m.raio|floatformat:"2u" }}"></circle>
+              {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="9">{{ n }}</text>{% endif %}
+            </g>
+            {% endwith %}
+            {% endfor %}
+          </svg>
+          <div class="map-tooltip" id="vendasMapTooltip"></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>Vendas por período</h2>
+          <p class="premissa">Contagem de vendas ativas por ano; clique numa barra para ver os meses daquele
+          ano.</p>
+          <div class="periodo-nav" id="periodoNav" hidden>
+            <button type="button" id="periodoVoltar">← Anos</button>
+            <span id="periodoAtual"></span>
+          </div>
+          <div class="chart-vbars compacto" id="periodoChart"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Valor de vendas por forma de pagamento</h2>
+          <p class="premissa">Soma de <code>valor_venda</code> por forma de pagamento; contagem de vendas
+          entre parênteses.</p>
+          <div class="chart-hbars neutro" id="pagamentoChart"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <hr class="divider">
@@ -120,9 +168,54 @@
 
 <a href="{% url 'assistente' %}" class="ia-float">IA</a>
 
+{{ vendas_payload|json_script:"vendas-data" }}
+
+<div hidden>
+  {% for m in marcadores %}
+  <div id="map-tt-{{ forloop.counter }}">
+    <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
+    {% for e in m.empreendimentos %}
+    <div class="map-tooltip-item">
+      <span class="map-tooltip-name">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></span>
+      <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }} dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  {% for m in marcadores_vendas %}
+  <div id="vmap-tt-{{ forloop.counter }}">
+    <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
+    {% for e in m.empreendimentos %}
+    <div class="map-tooltip-item">
+      <button type="button" class="map-tooltip-link" data-emp-id="{{ e.id }}">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></button>
+      <span class="map-tooltip-units">{{ e.vendas_ativas }} venda{{ e.vendas_ativas|pluralize }} · R$ {{ e.valor_total|floatformat:0 }}</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+
 <script>
 (function () {
-  const wrap = document.querySelector('.map-svg-wrap');
+  // --- Carrossel de seções (EMPREENDIMENTOS / VENDAS / ...) ---
+  const slides = Array.from(document.querySelectorAll('.carousel-slide'));
+  const title = document.getElementById('carouselTitle');
+  let idx = 0;
+  function showSlide(i) {
+    idx = ((i % slides.length) + slides.length) % slides.length;
+    slides.forEach((s, j) => { s.hidden = j !== idx; });
+    title.textContent = slides[idx].dataset.title;
+  }
+  document.querySelectorAll('.carousel-arrow').forEach(btn => {
+    btn.addEventListener('click', () => showSlide(idx + parseInt(btn.dataset.dir, 10)));
+  });
+  showSlide(0);
+})();
+
+(function () {
+  // --- Tooltip do mapa de Empreendimentos (hover simples, sem fixar) ---
+  const wrap = document.querySelector('.map-panel .map-svg-wrap');
   const tooltip = document.getElementById('mapTooltip');
   if (!wrap || !tooltip) return;
 
@@ -136,7 +229,7 @@
     tooltip.style.top = Math.max(8, Math.min(top, maxTop)) + 'px';
   }
 
-  document.querySelectorAll('.map-marker').forEach(marker => {
+  document.querySelectorAll('.map-panel .map-marker').forEach(marker => {
     const content = document.getElementById(marker.dataset.tooltipId);
     if (!content) return;
     marker.addEventListener('mouseenter', evt => {
@@ -156,6 +249,199 @@
     });
     marker.addEventListener('blur', () => tooltip.classList.remove('visible'));
   });
+})();
+
+(function () {
+  // --- Seção Vendas: mapa com tooltip fixável por clique + filtro dos gráficos ---
+  const dataEl = document.getElementById('vendas-data');
+  if (!dataEl) return;
+  const data = JSON.parse(dataEl.textContent);
+
+  const MESES = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+  const MESES_NOME = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+  const state = { empId: null, ano: null };
+
+  const periodoChart = document.getElementById('periodoChart');
+  const periodoNav = document.getElementById('periodoNav');
+  const periodoAtual = document.getElementById('periodoAtual');
+  const periodoVoltar = document.getElementById('periodoVoltar');
+  const pagamentoChart = document.getElementById('pagamentoChart');
+  const filtroBar = document.getElementById('vendasFiltro');
+  const filtroNome = document.getElementById('vendasFiltroNome');
+  const filtroLimpar = document.getElementById('vendasFiltroLimpar');
+
+  function bucketAtual() {
+    return state.empId ? data.por_empreendimento[state.empId] : data.geral;
+  }
+
+  function renderPeriodo() {
+    const bucket = bucketAtual();
+    periodoChart.innerHTML = '';
+    if (!bucket) return;
+
+    if (!state.ano) {
+      periodoNav.hidden = true;
+      const anos = Object.keys(bucket.por_ano).sort();
+      const maior = Math.max(1, ...anos.map(a => bucket.por_ano[a].total));
+      anos.forEach(ano => {
+        const total = bucket.por_ano[ano].total;
+        periodoChart.appendChild(buildBar(String(total), ano, (total / maior) * 100, () => {
+          state.ano = ano;
+          renderPeriodo();
+        }));
+      });
+    } else {
+      periodoNav.hidden = false;
+      periodoAtual.textContent = state.ano;
+      const anoBucket = bucket.por_ano[state.ano];
+      const meses = anoBucket ? anoBucket.meses : {};
+      const maior = Math.max(1, ...MESES.map(m => meses[m] || 0));
+      MESES.forEach((m, i) => {
+        const total = meses[m] || 0;
+        periodoChart.appendChild(buildBar(String(total), MESES_NOME[i], (total / maior) * 100, null));
+      });
+    }
+  }
+
+  function buildBar(valueTitle, label, pct, onClick) {
+    const col = document.createElement('div');
+    col.className = 'bar-col';
+    col.title = label + ': ' + valueTitle;
+    const fillArea = document.createElement('div');
+    fillArea.className = 'bar-fill-area';
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    bar.style.height = Math.max(pct, 1.5) + '%';
+    fillArea.appendChild(bar);
+    const tick = document.createElement('div');
+    tick.className = 'bar-tick';
+    const labelEl = document.createElement('div');
+    labelEl.className = 'bar-label';
+    const span = document.createElement('span');
+    span.textContent = label;
+    labelEl.appendChild(span);
+    col.appendChild(fillArea);
+    col.appendChild(tick);
+    col.appendChild(labelEl);
+    if (onClick) {
+      col.style.cursor = 'pointer';
+      col.addEventListener('click', onClick);
+    }
+    return col;
+  }
+
+  function renderPagamento() {
+    const bucket = bucketAtual();
+    pagamentoChart.innerHTML = '';
+    if (!bucket) return;
+    const entradas = Object.entries(bucket.por_pagamento);
+    const maiorValor = Math.max(1, ...entradas.map(([, v]) => v.valor));
+    entradas.sort((a, b) => b[1].valor - a[1].valor);
+    entradas.forEach(([forma, v]) => {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const label = document.createElement('div');
+      label.className = 'label';
+      label.title = forma;
+      label.textContent = forma;
+      const track = document.createElement('div');
+      track.className = 'bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'bar-fill';
+      fill.style.width = Math.max((v.valor / maiorValor) * 100, 1.5) + '%';
+      track.appendChild(fill);
+      const value = document.createElement('div');
+      value.className = 'value';
+      value.textContent = 'R$ ' + Math.round(v.valor).toLocaleString('pt-BR') + ' (' + v.count + ')';
+      row.appendChild(label);
+      row.appendChild(track);
+      row.appendChild(value);
+      pagamentoChart.appendChild(row);
+    });
+  }
+
+  function renderTudo() {
+    renderPeriodo();
+    renderPagamento();
+  }
+
+  periodoVoltar.addEventListener('click', () => {
+    state.ano = null;
+    renderPeriodo();
+  });
+
+  function setFiltro(empId) {
+    state.empId = empId;
+    state.ano = null;
+    if (empId && data.empreendimentos[empId]) {
+      filtroBar.hidden = false;
+      filtroNome.textContent = data.empreendimentos[empId].nome;
+    } else {
+      filtroBar.hidden = true;
+      filtroNome.textContent = '';
+    }
+    renderTudo();
+  }
+
+  filtroLimpar.addEventListener('click', () => setFiltro(null));
+
+  // Mapa de vendas: clique fixa a tooltip; clique num empreendimento filtra os gráficos.
+  const wrap = document.querySelector('.vendas-marker')?.closest('.map-svg-wrap');
+  const tooltip = document.getElementById('vendasMapTooltip');
+  let pinnedMarker = null;
+
+  function place(x, y) {
+    const rect = wrap.getBoundingClientRect();
+    const left = Math.max(8, Math.min(x - rect.left + 16, rect.width - tooltip.offsetWidth - 8));
+    const top = Math.max(8, Math.min(y - rect.top + 16, rect.height - tooltip.offsetHeight - 8));
+    tooltip.style.left = left + 'px';
+    tooltip.style.top = top + 'px';
+  }
+
+  function showTooltipFor(marker, x, y) {
+    const content = document.getElementById(marker.dataset.tooltipId);
+    if (!content) return;
+    tooltip.innerHTML = content.innerHTML;
+    tooltip.classList.add('visible');
+    place(x, y);
+    tooltip.querySelectorAll('.map-tooltip-link').forEach(btn => {
+      btn.addEventListener('click', () => setFiltro(btn.dataset.empId));
+    });
+  }
+
+  if (wrap) {
+    document.querySelectorAll('.vendas-marker').forEach(marker => {
+      marker.addEventListener('mouseenter', evt => {
+        if (!pinnedMarker) showTooltipFor(marker, evt.clientX, evt.clientY);
+      });
+      marker.addEventListener('mousemove', evt => {
+        if (!pinnedMarker) place(evt.clientX, evt.clientY);
+      });
+      marker.addEventListener('mouseleave', () => {
+        if (!pinnedMarker) tooltip.classList.remove('visible');
+      });
+      marker.addEventListener('click', evt => {
+        evt.stopPropagation();
+        if (pinnedMarker === marker) {
+          pinnedMarker = null;
+          tooltip.classList.remove('visible');
+        } else {
+          pinnedMarker = marker;
+          showTooltipFor(marker, evt.clientX, evt.clientY);
+        }
+      });
+    });
+    document.addEventListener('click', evt => {
+      if (pinnedMarker && !tooltip.contains(evt.target)) {
+        pinnedMarker = null;
+        tooltip.classList.remove('visible');
+      }
+    });
+    tooltip.addEventListener('click', evt => evt.stopPropagation());
+  }
+
+  renderTudo();
 })();
 </script>
 {% endblock %}

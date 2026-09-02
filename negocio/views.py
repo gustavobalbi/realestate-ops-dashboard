@@ -40,6 +40,8 @@ def dashboard_view(request):
     marcadores = analytics.mapa_marcadores()
     duplicidade = analytics.clientes_duplicados()
     inconsistencias = analytics.inconsistencias_financeiro()
+    marcadores_vendas = analytics.mapa_marcadores_vendas()
+    vendas_payload = analytics.vendas_dashboard_payload()
 
     context = {
         "chart_velocidade": chart_velocidade,
@@ -53,6 +55,9 @@ def dashboard_view(request):
         "total_inconsistencias": len(inconsistencias),
         "total_financeiro": FinanceiroMensal.objects.count(),
         "total_empreendimentos": Empreendimento.objects.count(),
+        "marcadores_vendas": marcadores_vendas,
+        "total_vendas_ativas": vendas_payload["geral"]["total_vendas"],
+        "vendas_payload": vendas_payload,
     }
     return render(request, "negocio/dashboard.html", context)
 
