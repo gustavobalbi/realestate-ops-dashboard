@@ -49,8 +49,11 @@
       <div class="chart-vbars">
         {% for b in chart_velocidade %}
         <div class="bar-col{% if b.pior %} pior{% endif %}" title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
-          <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+          <div class="bar-fill-area">
+            <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+          </div>
           <div class="bar-tick"></div>
+          <div class="bar-label"><span>{{ b.item.empreendimento.nome|truncatechars:18 }}</span></div>
         </div>
         {% endfor %}
       </div>
