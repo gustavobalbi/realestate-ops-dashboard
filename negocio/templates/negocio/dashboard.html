@@ -33,7 +33,7 @@
       <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
       {% for e in m.empreendimentos %}
       <div class="map-tooltip-item">
-        <span class="map-tooltip-name">{{ e.nome }}</span>
+        <span class="map-tooltip-name">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></span>
         <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }} dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
       </div>
       {% endfor %}

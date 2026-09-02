@@ -292,6 +292,7 @@ def inconsistencias_financeiro() -> list[InconsistenciaFinanceira]:
 @dataclass
 class EmpreendimentoResumo:
     nome: str
+    tipo: str
     cidade: str
     uf: str
     unidades_disponiveis: int
@@ -364,6 +365,7 @@ def mapa_marcadores() -> list[MarcadorMapa]:
         resumos = [
             EmpreendimentoResumo(
                 nome=e.nome,
+                tipo=e.tipo,
                 cidade=cidade,
                 uf=uf,
                 unidades_disponiveis=unidades_disponiveis.get(e.id, 0),
