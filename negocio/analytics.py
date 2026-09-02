@@ -396,3 +396,143 @@ def mapa_marcadores() -> list[MarcadorMapa]:
         )
         for p in pontos
     ]
+
+
+# ---------------------------------------------------------------------------
+# Carrossel -- seção "Vendas": tudo aqui é escopado a vendas ativas
+# (data_distrato IS NULL), conforme pedido -- não passa por venda_esta_ativa()
+# (que também olha status_venda) porque o pedido foi literal sobre a coluna.
+# Na prática as duas definições coincidem: as 37 linhas inconsistentes achadas
+# antes têm data_distrato preenchida, então nunca entram aqui de qualquer forma.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class EmpreendimentoVendasResumo:
+    id: int
+    nome: str
+    tipo: str
+    cidade: str
+    uf: str
+    vendas_ativas: int
+    valor_total: float
+
+
+def _vendas_ativas_com_empreendimento():
+    return (
+        Venda.objects.filter(data_distrato__isnull=True)
+        .select_related("unidade", "unidade__empreendimento")
+    )
+
+
+def mapa_marcadores_vendas() -> list[MarcadorMapa]:
+    """Como mapa_marcadores(), mas o raio do marcador reflete o volume de vendas ativas
+    na cidade (não a contagem de empreendimentos), já que esta é a seção de Vendas."""
+    por_emp: dict[int, dict] = {}
+    for v in _vendas_ativas_com_empreendimento():
+        emp = v.unidade.empreendimento
+        info = por_emp.setdefault(
+            emp.id,
+            {"emp": emp, "vendas_ativas": 0, "valor_total": 0.0},
+        )
+        info["vendas_ativas"] += 1
+        info["valor_total"] += v.valor_venda
+
+    por_cidade: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    for info in por_emp.values():
+        emp = info["emp"]
+        por_cidade[(emp.cidade, emp.uf)].append(info)
+
+    pontos = []
+    for (cidade, uf), infos in por_cidade.items():
+        coords = geo.CITY_COORDS.get(cidade)
+        if coords is None:
+            continue
+        x, y = geo.project(*coords)
+        total_vendas_cidade = sum(i["vendas_ativas"] for i in infos)
+        resumos = [
+            EmpreendimentoVendasResumo(
+                id=i["emp"].id,
+                nome=i["emp"].nome,
+                tipo=i["emp"].tipo,
+                cidade=cidade,
+                uf=uf,
+                vendas_ativas=i["vendas_ativas"],
+                valor_total=i["valor_total"],
+            )
+            for i in infos
+        ]
+        resumos.sort(key=lambda r: r.vendas_ativas, reverse=True)
+        pontos.append(
+            {
+                "cidade": cidade,
+                "uf": uf,
+                "x": x,
+                "y": y,
+                # Escala própria (não _raio_marcador): aqui "n" é volume de vendas
+                # (dezenas a centenas), não contagem de empreendimentos (1-4).
+                "raio": 18 + 3.3 * math.sqrt(max(total_vendas_cidade, 1)),
+                "empreendimentos": resumos,
+            }
+        )
+
+    _afastar_marcadores_sobrepostos(pontos)
+
+    return [
+        MarcadorMapa(
+            cidade=p["cidade"],
+            uf=p["uf"],
+            x=p["x"],
+            y=p["y"],
+            raio=p["raio"],
+            empreendimentos=p["empreendimentos"],
+        )
+        for p in pontos
+    ]
+
+
+def vendas_dashboard_payload() -> dict:
+    """Dados agregados da seção Vendas -- geral e por empreendimento -- num único
+    dicionário serializável em JSON. Enviado à página inteiro (negocio/base é uma base
+    de milhares de linhas, não milhões) para o filtro por empreendimento, ao clicar num
+    marcador do mapa, re-renderizar os gráficos no cliente sem recarregar a página."""
+
+    def bucket_vazio() -> dict:
+        return {
+            "total_vendas": 0,
+            "por_ano": {},
+            "por_pagamento": {},
+        }
+
+    def registrar(bucket: dict, venda: Venda) -> None:
+        bucket["total_vendas"] += 1
+        ano = venda.data_venda[:4]
+        mes = venda.data_venda[5:7]
+        ano_bucket = bucket["por_ano"].setdefault(
+            ano, {"total": 0, "meses": {f"{m:02d}": 0 for m in range(1, 13)}}
+        )
+        ano_bucket["total"] += 1
+        ano_bucket["meses"][mes] += 1
+        pag_bucket = bucket["por_pagamento"].setdefault(
+            venda.forma_pagamento, {"count": 0, "valor": 0.0}
+        )
+        pag_bucket["count"] += 1
+        pag_bucket["valor"] += venda.valor_venda
+
+    geral = bucket_vazio()
+    por_empreendimento: dict[str, dict] = {}
+    empreendimentos: dict[str, dict] = {}
+
+    for v in _vendas_ativas_com_empreendimento():
+        emp = v.unidade.empreendimento
+        registrar(geral, v)
+        emp_id = str(emp.id)
+        bucket = por_empreendimento.setdefault(emp_id, bucket_vazio())
+        registrar(bucket, v)
+        empreendimentos[emp_id] = {"nome": emp.nome, "cidade": emp.cidade, "uf": emp.uf}
+
+    return {
+        "geral": geral,
+        "por_empreendimento": por_empreendimento,
+        "empreendimentos": empreendimentos,
+    }
