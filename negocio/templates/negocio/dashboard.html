@@ -1,12 +1,14 @@
 {% extends "negocio/base.html" %}
+{% load negocio_extras %}
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
 <div class="panel">
   <h2>1. Velocidade de vendas por empreendimento</h2>
   <p class="premissa">Premissa: velocidade = vendas ativas (líquidas de distrato) / total de unidades
-  ofertadas no empreendimento. Uma venda distratada não é contada, mesmo quando a unidade
-  historicamente não voltou a "Disponível" no cadastro (ver README, seção de qualidade de dados).</p>
+  ofertadas no empreendimento. Uma venda conta como distrato sempre que <code>data_distrato</code>
+  está preenchida — inclusive nas 37 linhas em que <code>status_venda</code> ainda diz "ativa"
+  (achado: o sistema de origem falhou em atualizar esse campo ao registrar o distrato; ver README).</p>
 
   <h3 style="font-size:14px;color:var(--danger);">3 piores desempenhos relativos</h3>
   <table>
@@ -61,32 +63,49 @@
 <div class="grid-2">
   <div class="panel">
     <h2>3. Clientes potencialmente duplicados</h2>
-    <p class="premissa">Premissa: dois cadastros são um provável duplicado quando o nome, normalizado
-    (sem acento, minúsculo, espaços colapsados), é idêntico. Regra conservadora — não há CPF/telefone
-    na base para uma checagem mais forte. "Ticket médio" abaixo = receita total das vendas / número
-    de clientes únicos que compraram (não muda a receita, só o denominador ao mesclar duplicados).</p>
+    <p class="premissa">Verificação: a base não tem CPF/telefone, mas o e-mail já é uma chave própria
+    e distinta aqui — {{ duplicidade.emails_distintos }} e-mails distintos para
+    {{ duplicidade.total_clientes }} clientes. <strong>Não há indício de cadastro duplicado</strong> nesta
+    base. O que existe são homônimos: pessoas diferentes com o mesmo nome (mostradas abaixo como
+    "Nome — Cidade/UF"). Uma dedup ingênua por nome mesclaria essas pessoas por engano e distorceria o
+    ticket médio por cliente para cima — a comparação abaixo ilustra esse erro ao lado do valor correto.</p>
+
+    {% if duplicidade.duplicados_reais %}
+    <p class="premissa" style="border-color:var(--danger);">Atenção: {{ duplicidade.duplicados_reais|length }}
+    grupo(s) de clientes compartilham o mesmo e-mail — essas são duplicidades reais.</p>
+    <table style="margin-bottom:14px;">
+      <tr><th>E-mail</th><th>Clientes</th></tr>
+      {% for g in duplicidade.duplicados_reais %}
+      <tr>
+        <td>{{ g.clientes.0.email }}</td>
+        <td>{% for c in g.clientes %}{{ c|com_localizacao }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+
     <div class="grid-3">
       <div class="stat">
-        <div class="value">{{ duplicidade.registros_duplicados }}</div>
-        <div class="label">registros duplicados</div>
+        <div class="value">{{ duplicidade.total_clientes }} = {{ duplicidade.emails_distintos }}</div>
+        <div class="label">clientes = e-mails distintos</div>
       </div>
       <div class="stat">
-        <div class="value">{{ duplicidade.clientes_unicos_bruto }} → {{ duplicidade.clientes_unicos_tratado }}</div>
-        <div class="label">clientes únicos (bruto → tratado)</div>
+        <div class="value">R$ {{ duplicidade.ticket_medio_correto|floatformat:0 }}</div>
+        <div class="label">ticket médio/cliente (correto, por e-mail)</div>
       </div>
       <div class="stat">
-        <div class="value">R$ {{ duplicidade.ticket_medio_bruto|floatformat:0 }} → R$ {{ duplicidade.ticket_medio_tratado|floatformat:0 }}</div>
-        <div class="label">ticket médio/cliente (bruto → tratado)</div>
+        <div class="value">R$ {{ duplicidade.ticket_medio_ingenuo_por_nome|floatformat:0 }}</div>
+        <div class="label">ticket médio se agrupássemos por nome (errado)</div>
       </div>
     </div>
     <details style="margin-top:10px;">
-      <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver {{ duplicidade.grupos_duplicados|length }} grupos duplicados</summary>
+      <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver {{ duplicidade.homonimos|length }} grupos de homônimos (pessoas distintas)</summary>
       <table style="margin-top:10px;">
-        <tr><th>Nome (normalizado)</th><th>IDs</th></tr>
-        {% for g in duplicidade.grupos_duplicados %}
+        <tr><th>Nome</th><th>Cadastros (nome — cidade/UF)</th></tr>
+        {% for g in duplicidade.homonimos %}
         <tr>
           <td>{{ g.clientes.0.nome }}</td>
-          <td>{% for c in g.clientes %}#{{ c.id }}{% if not forloop.last %}, {% endif %}{% endfor %}</td>
+          <td>{% for c in g.clientes %}{{ c|com_localizacao }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
         </tr>
         {% endfor %}
       </table>

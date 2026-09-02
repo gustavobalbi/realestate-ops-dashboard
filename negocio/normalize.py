@@ -15,6 +15,12 @@ two different historical spellings for the same outcome: a unit whose sale fell 
 and that was never put back on the market. Both are treated as "not available for sale"
 in analytics. Going forward this app follows the brief's explicit rule instead: a distrato
 returns the unit to "disponivel" so it re-enters the sellable pool.
+
+Finding: 37 of the 150 vendas rows with a non-null data_distrato still have status_venda
+reading "ativa" (in some casing) -- the system failed to update status_venda when the
+distrato was recorded. data_distrato is treated as authoritative: any row with a distrato
+date is counted as distrato regardless of what status_venda says (see venda_esta_ativa
+below).
 """
 
 import unicodedata
@@ -72,6 +78,18 @@ def norm_status_venda(value: str | None) -> str:
     if key in ("ativa",):
         return "ativa"
     return key
+
+
+def venda_esta_ativa(status_venda: str | None, data_distrato: str | None) -> bool:
+    """True if a sale should be counted as active.
+
+    data_distrato is authoritative over status_venda: a filled-in distrato date always
+    means the sale is a distrato, even on the 37 rows where status_venda was never
+    updated and still reads "ativa" (see module docstring).
+    """
+    if data_distrato:
+        return False
+    return norm_status_venda(status_venda) == "ativa"
 
 
 def norm_nome_cliente(value: str | None) -> str:

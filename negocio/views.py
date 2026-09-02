@@ -8,7 +8,7 @@ from . import analytics, auth, services
 from .forms import LoginForm, NovaVendaForm, PerguntaForm
 from .models import Cliente, Empreendimento, FinanceiroMensal, Unidade, Venda
 from .nl_assistant import AssistantError, responder
-from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, norm_status_venda
+from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, venda_esta_ativa
 
 
 def login_view(request):
@@ -135,7 +135,7 @@ def vendas_ativas_view(request):
     qs = Venda.objects.select_related("unidade", "unidade__empreendimento", "cliente").order_by(
         "-data_venda"
     )
-    vendas_ativas = [v for v in qs if norm_status_venda(v.status_venda) == "ativa"]
+    vendas_ativas = [v for v in qs if venda_esta_ativa(v.status_venda, v.data_distrato)]
     if termo:
         termo_lower = termo.lower()
         vendas_ativas = [
