@@ -1,0 +1,67 @@
+{% extends "negocio/base.html" %}
+{% block title %}Dados{% endblock %}
+{% block content %}
+
+<div class="panel">
+  <h2>Dados normalizados</h2>
+  <p class="premissa">Todas as tabelas de negócio (menos <code>usuarios</code>), paginadas. Colunas de
+  texto em maiúsculo e sem acentuação só para exibição -- o valor bruto na base não muda. As colunas com
+  mais de uma grafia para o mesmo valor (<code>unidades.status</code>, <code>vendas.status_venda</code>,
+  <code>empreendimentos.modelo_negocio</code>) já aparecem canonicalizadas -- ver
+  <code>negocio/normalize.py</code>.</p>
+
+  <div class="dados-tabs">
+    {% for chave, titulo in tabelas %}
+    <button type="button" class="dados-tab{% if forloop.first %} active{% endif %}" data-tabela="{{ chave }}">{{ titulo }}</button>
+    {% endfor %}
+  </div>
+
+  <div class="dados-loading" id="dadosLoading" hidden>
+    <span class="spinner"></span> Carregando...
+  </div>
+
+  <div id="dadosContent">
+    {% include "negocio/_tabela_dados.html" with tabela=tabela_inicial %}
+  </div>
+</div>
+
+<script>
+(function () {
+  const tabs = document.querySelectorAll('.dados-tab');
+  const content = document.getElementById('dadosContent');
+  const loading = document.getElementById('dadosLoading');
+  let tabelaAtual = tabs[0]?.dataset.tabela;
+
+  async function carregar(tabela, pagina) {
+    loading.hidden = false;
+    try {
+      const resp = await fetch(`/api/dados-tabela/?tabela=${encodeURIComponent(tabela)}&pagina=${pagina}`);
+      const html = await resp.text();
+      content.innerHTML = html;
+    } catch (e) {
+      content.innerHTML = '<p class="premissa">Não foi possível carregar esta tabela agora.</p>';
+    } finally {
+      loading.hidden = true;
+    }
+  }
+
+  tabs.forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('active')) return;
+      tabs.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      tabelaAtual = btn.dataset.tabela;
+      carregar(tabelaAtual, 1);
+    });
+  });
+
+  content.addEventListener('click', evt => {
+    const btn = evt.target.closest('[data-ir-pagina]');
+    if (!btn || btn.disabled) return;
+    const pagina = parseInt(btn.dataset.irPagina, 10);
+    if (!pagina || pagina < 1) return;
+    carregar(tabelaAtual, pagina);
+  });
+})();
+</script>
+{% endblock %}

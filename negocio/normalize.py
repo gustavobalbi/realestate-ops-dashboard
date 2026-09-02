@@ -39,6 +39,11 @@ CANONICAL_VENDA = {
     "distrato": "Distrato",
 }
 
+CANONICAL_MODELO_NEGOCIO = {
+    "obra_administracao": "Obra por Administração",
+    "spe_incorporadora": "SPE Incorporadora",
+}
+
 # Statuses (already normalized) that make a unit ineligible for a new sale.
 UNIDADE_INDISPONIVEL = {"reservada", "vendida", "distrato", "cancelado"}
 
@@ -97,3 +102,25 @@ def norm_nome_cliente(value: str | None) -> str:
     """Key used to group probable duplicate client records by name."""
     key = norm_key(value)
     return " ".join(key.split())
+
+
+def norm_modelo_negocio(value: str | None) -> str:
+    """Canonical bucket key for empreendimentos.modelo_negocio, que tem a mesma grafia
+    inconsistente do resto da base: 'OBRA POR ADM', 'obra por administracao' e 'Obra por
+    Administração' convivem (12 linhas), assim como 'spe incorporadora', 'incorporacao' e
+    'Incorporação' (10 linhas) -- duas categorias reais atrás de 9 grafias distintas."""
+    key = norm_key(value)
+    if "adm" in key:
+        return "obra_administracao"
+    if "incorpora" in key:
+        return "spe_incorporadora"
+    return key
+
+
+def maiusculo_sem_acento(value) -> str:
+    """Formato de exibição padrão para colunas de texto na página de Dados: maiúsculo,
+    sem acentuação (cedilha e vogais acentuadas viram a letra base), "--" para nulo/vazio.
+    Não usada para decidir nada de negócio -- é só apresentação."""
+    if value is None or value == "":
+        return "--"
+    return strip_accents(str(value)).upper()

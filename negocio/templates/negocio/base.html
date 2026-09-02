@@ -22,6 +22,7 @@
       <a href="{% url 'venda_nova' %}" class="{% if request.resolver_match.url_name == 'venda_nova' %}active{% endif %}">Nova venda</a>
       <a href="{% url 'vendas_ativas' %}" class="{% if request.resolver_match.url_name == 'vendas_ativas' %}active{% endif %}">Vendas ativas / distrato</a>
       <a href="{% url 'assistente' %}" class="{% if request.resolver_match.url_name == 'assistente' %}active{% endif %}">Assistente (IA)</a>
+      <a href="{% url 'dados' %}" class="{% if request.resolver_match.url_name == 'dados' %}active{% endif %}">Dados</a>
     </nav>
     <div class="user">
       {{ usuario_logado.nome }} · {{ usuario_logado.papel }}

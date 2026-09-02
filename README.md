@@ -107,6 +107,17 @@ Isso afeta a pergunta 1 (velocidade de vendas) e a listagem de "vendas ativas" n
 de escrita — sem essa correção, seria possível tentar registrar um segundo distrato numa
 venda que, por essa lógica, já não está mais ativa.
 
+**Tratamento de nulos:** auditei `NULL`/string vazia em todas as colunas das 7 tabelas.
+Únicos campos com `NULL` real: `empreendimentos.observacoes` (20 de 22),
+`obra_andamento.observacoes` (537 de 562) — ambos campos de anotação livre, opcionais por
+natureza — e `vendas.data_distrato` (2.062 de 2.216), que é `NULL` precisamente para toda
+venda ainda ativa (é a semântica correta da coluna, não uma lacuna de dado). Não há chave
+estrangeira órfã em nenhuma tabela (`unidades.empreendimento_id`,
+`vendas.unidade_id`/`cliente_id` sempre resolvem para uma linha existente). Ou seja: nesta
+base, "valores nulos onde não deveriam existir" não se manifesta como um problema à parte
+das duas inconsistências já documentadas acima (o `"cancelado"` de `unidades.status` e o
+`status_venda` desatualizado) — verificação feita, resultado limpo.
+
 ### As 4 perguntas de negócio (premissas adotadas)
 
 1. **Velocidade de vendas** = vendas ativas (líquidas de distrato) / total de unidades
@@ -200,6 +211,26 @@ exigiu desabilitar a localização pt-BR nesses valores especificamente
 formata números com vírgula decimal por padrão, o que quebra CSS/SVG (`height: 100,0%` não
 é um valor válido).
 
+## Página Dados (tabelas normalizadas)
+
+Navegador somente-leitura de todas as tabelas de negócio (todas menos `usuarios`),
+`negocio/data_browser.py`, uma aba por tabela e paginação de 25 linhas (troca de aba/página
+via `fetch` para `/api/dados-tabela/`, com indicador de carregamento -- a mesma
+preocupação de UX do Assistente, ver abaixo). Formato de exibição, aplicado só na hora de
+montar a página (o dado bruto na base não muda, mesma filosofia do resto do app):
+
+- Toda coluna de texto em maiúsculo e sem acentuação (`negocio/normalize.py:
+  maiusculo_sem_acento` -- cedilha e vogais acentuadas viram a letra base).
+- Toda coluna de data formatada `dd/mm/aaaa`; nulo vira `--` (datas, `observacoes` e
+  `data_distrato` de venda ativa).
+- Colunas com mais de uma grafia para o mesmo valor já saem canonicalizadas:
+  `unidades.status` e `vendas.status_venda` (já existiam em `normalize.py`) e agora também
+  `empreendimentos.modelo_negocio` (`norm_modelo_negocio`, novo) -- essa coluna tinha 9
+  grafias distintas para só 2 categorias reais ("Obra por Administração" e "SPE
+  Incorporadora"), achado feito ao montar esta página.
+- Colunas de chave estrangeira (`empreendimento_id`, `unidade_id`, `cliente_id`) mostram o
+  nome/identificador resolvido, não o número bruto, para ficar legível.
+
 ## Autenticação — o que É e o que NÃO é
 
 Login funcional contra a tabela `usuarios` já existente, **sem** `django.contrib.auth`
@@ -260,7 +291,11 @@ uma alucinação** (`negocio/nl_assistant.py`):
    vazia, em vez de adivinhar.
 
 A tela do assistente sempre mostra o SQL gerado e a tabela de resultados brutos ao lado
-da resposta em texto, para o avaliador conferir a resposta contra os dados diretamente.
+da resposta em texto, para o avaliador conferir a resposta contra os dados diretamente. O
+envio da pergunta continua um POST normal (nada de `fetch`/SPA aqui, de propósito -- é o
+componente mais sensível do app, então a interatividade nova não mexeu na lógica de
+requisição), mas um overlay de carregamento aparece assim que o formulário é enviado; se
+passar de 15s sem resposta, uma dica explica que o provedor pode estar sobrecarregado.
 
 **Limitações conhecidas:** uma única consulta por pergunta (sem follow-up multi-turno),
 sem cache de perguntas repetidas, sujeito a instabilidade/alta demanda do provedor Gemini

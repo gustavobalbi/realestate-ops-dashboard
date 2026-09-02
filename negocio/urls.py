@@ -10,6 +10,8 @@ urlpatterns = [
     path("vendas/ativas/", views.vendas_ativas_view, name="vendas_ativas"),
     path("vendas/<int:venda_id>/distrato/", views.distrato_view, name="distrato"),
     path("assistente/", views.assistente_view, name="assistente"),
+    path("dados/", views.dados_view, name="dados"),
     path("api/unidades-disponiveis/", views.unidades_disponiveis_json, name="unidades_disponiveis_json"),
     path("api/clientes-busca/", views.clientes_busca_json, name="clientes_busca_json"),
+    path("api/dados-tabela/", views.dados_tabela_partial_view, name="dados_tabela_partial"),
 ]
