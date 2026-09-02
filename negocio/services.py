@@ -9,7 +9,7 @@ import datetime as dt
 from django.db import transaction
 
 from .models import Cliente, Unidade, Venda
-from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, norm_status_venda
+from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, venda_esta_ativa
 
 
 class RegraDeNegocioError(Exception):
@@ -65,9 +65,10 @@ def registrar_venda(
 @transaction.atomic
 def registrar_distrato(*, venda_id: int, data_distrato: dt.date | None = None) -> Venda:
     venda = Venda.objects.select_related("unidade").select_for_update().get(id=venda_id)
-    if norm_status_venda(venda.status_venda) != "ativa":
+    if not venda_esta_ativa(venda.status_venda, venda.data_distrato):
         raise RegraDeNegocioError(
-            f"A venda #{venda.id} não está ativa (status atual: {venda.status_venda})."
+            f"A venda #{venda.id} não está ativa (status atual: {venda.status_venda}, "
+            f"data de distrato: {venda.data_distrato or '—'})."
         )
 
     venda.status_venda = "Distrato"

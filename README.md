@@ -79,19 +79,37 @@ Verificado também: `unidades.status` e `vendas.status_venda` já são consisten
 uma vez normalizados (nenhuma unidade "vendida" com venda "distrato" e vice-versa) —
 então a única inconsistência real de estoque é a de `"cancelado"` acima.
 
+**Achado de qualidade de dados:** 37 das 150 linhas de `vendas` com `data_distrato`
+preenchida ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o sistema de
+origem falhou em atualizar esse campo ao registrar o distrato. `data_distrato` é tratado
+como a fonte de verdade (`negocio/normalize.py:venda_esta_ativa`): uma venda com data de
+distrato preenchida sempre conta como distrato, independente do que `status_venda` diga.
+Isso afeta a pergunta 1 (velocidade de vendas) e a listagem de "vendas ativas" na camada
+de escrita — sem essa correção, seria possível tentar registrar um segundo distrato numa
+venda que, por essa lógica, já não está mais ativa.
+
 ### As 4 perguntas de negócio (premissas adotadas)
 
 1. **Velocidade de vendas** = vendas ativas (líquidas de distrato) / total de unidades
    cadastradas no empreendimento (estoque total ofertado, independente do status atual).
+   Uma venda é "ativa" segundo `venda_esta_ativa()`: `data_distrato` preenchida sempre
+   conta como distrato, mesmo nas 37 linhas onde `status_venda` ainda diz "ativa" (achado
+   acima) — sem essa checagem a velocidade de alguns empreendimentos fica superestimada.
 2. **Risco de estouro de custo** = soma de `custo_realizado_mes` menos soma de
    `custo_orcado_mes` de todas as medições em `obra_andamento`, por empreendimento;
    positivo = estouro, magnitude = essa diferença acumulada em R$.
-3. **Clientes duplicados** = mesmo nome após normalizar (sem acento, minúsculo, espaços
-   colapsados) — regra conservadora, pois a base não tem CPF/telefone para checagem mais
-   forte. O impacto é mostrado em duas métricas: nº de clientes únicos (bruto vs.
-   mesclado) e ticket médio por cliente = receita total das vendas / nº de clientes
-   únicos que compraram (a receita não muda ao mesclar, só o denominador — é exatamente a
-   distorção que a pergunta pede para expor).
+3. **Clientes duplicados** = **não há indícios de cadastro duplicado nesta base.** A
+   primeira versão deste dashboard flagueava homônimos (mesmo nome) como duplicados, mas
+   a base tem e-mail, e o e-mail já é uma chave própria e distinta aqui: 2.691 clientes,
+   2.691 e-mails distintos mesmo após normalizar caixa/espaços — zero repetições. O que
+   existe são 196 grupos de homônimos (pessoas diferentes com o mesmo nome), mostrados no
+   dashboard como "Nome — Cidade/UF" para deixar claro que são cadastros distintos. O
+   dashboard também quantifica o erro que a primeira abordagem cometia: agregar por nome
+   em vez de por uma chave distinta (e-mail) reduz artificialmente o número de "clientes"
+   e infla o ticket médio por cliente (de ~R$ 3,15 milhões para ~R$ 3,31 milhões nesta
+   base) — exatamente a distorção que a pergunta de negócio pede para expor, só que na
+   direção oposta da intuição inicial: o risco aqui era criar duplicidade que não existe,
+   não deixar passar uma que existe.
 4. **Financeiro reportado vs. recalculado**: recalculado = `receita_reconhecida −
    custo_incorrido − despesas_corporativas_rat`; inconsistente quando
    `|recalculado − reportado| > R$ 0,01` (tolerância de arredondamento).

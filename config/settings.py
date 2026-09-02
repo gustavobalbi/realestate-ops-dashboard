@@ -80,6 +80,7 @@ LANGUAGE_CODE = "pt-br"
 TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True
 USE_TZ = True
+USE_THOUSAND_SEPARATOR = True  # ex.: R$ 129.810.520,86 em vez de R$ 129810520,86
 
 STATIC_URL = "static/"
 STATICFILES_DIRS = [BASE_DIR / "static"]
