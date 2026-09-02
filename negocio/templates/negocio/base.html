@@ -4,13 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Cambará{% endblock %} · Cambará Empreendimentos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
   {% if usuario_logado %}
   <div class="topbar">
-    <div class="brand">CAMBARÁ <span>· soluções de negócio</span></div>
+    <div class="brand">
+      <img src="{% static 'img/cambara-mark.png' %}" alt="">
+      CAMBARÁ <span>· soluções de negócio</span>
+    </div>
     <nav>
       <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">Dashboard</a>
       <a href="{% url 'venda_nova' %}" class="{% if request.resolver_match.url_name == 'venda_nova' %}active{% endif %}">Nova venda</a>

@@ -1,23 +1,111 @@
 {% extends "negocio/base.html" %}
 {% block title %}Assistente{% endblock %}
-{% block content %}
-<div class="panel">
-  <h2>Assistente de perguntas em linguagem natural</h2>
-  <p class="premissa">Texto-para-SQL: a pergunta é convertida em uma consulta SQL somente leitura,
-  executada contra o banco real, e a resposta é gerada a partir das linhas retornadas — nunca
-  inventada pelo modelo. O SQL e a tabela de resultados ficam sempre visíveis abaixo para conferência.</p>
 
-  <form method="post">
+{% block extra_head %}
+<style>
+  .ia-hero {
+    min-height: 58vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 40px 16px;
+  }
+  .ia-hero h1 {
+    font-size: 34px;
+    color: var(--brand-primary);
+    margin: 0 0 10px;
+  }
+  .ia-hero .sub {
+    color: var(--text-dim);
+    font-size: 14.5px;
+    max-width: 560px;
+    margin: 0 0 32px;
+    line-height: 1.6;
+  }
+
+  .ia-inputbar {
+    width: 100%;
+    max-width: 680px;
+    background: var(--panel);
+    border: 1.5px solid var(--border);
+    border-radius: 18px;
+    box-shadow: 0 4px 18px rgba(61, 35, 15, 0.08);
+    padding: 10px 10px 10px 20px;
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+  .ia-inputbar textarea {
+    flex: 1;
+    border: none;
+    outline: none;
+    resize: none;
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--text);
+    background: transparent;
+    padding: 10px 0;
+    max-height: 160px;
+  }
+  .ia-inputbar button {
+    border-radius: 12px;
+    padding: 10px 20px;
+    flex-shrink: 0;
+  }
+
+  .ia-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 680px; margin-top: 18px; }
+  .ia-chip {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    border-radius: 999px;
+    padding: 7px 14px;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .ia-chip:hover { border-color: var(--brand-primary); color: var(--brand-primary); }
+
+  .ia-followup { max-width: 680px; margin: 0 auto 28px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+{% if not resultado %}
+<div class="ia-hero">
+  <h1>Pergunte sobre os dados da Cambará</h1>
+  <p class="sub">Texto-para-SQL: sua pergunta vira uma consulta SQL somente leitura, executada contra o
+  banco real. A resposta é gerada a partir das linhas retornadas — nunca inventada pelo modelo — e o SQL
+  fica sempre visível para conferência.</p>
+
+  <form method="post" id="ia-form">
     {% csrf_token %}
-    <div class="field">
-      {{ form.pergunta.label_tag }}
+    <div class="ia-inputbar">
       {{ form.pergunta }}
+      <button type="submit">Perguntar</button>
     </div>
-    <button type="submit">Perguntar</button>
+  </form>
+
+  <div class="ia-chips">
+    <div class="ia-chip" data-q="Qual empreendimento tem maior risco de estouro de custo?">Maior risco de estouro de custo</div>
+    <div class="ia-chip" data-q="Qual foi a venda mais cara já registrada?">Venda mais cara já registrada</div>
+    <div class="ia-chip" data-q="Quantas vendas ativas existem no total?">Total de vendas ativas</div>
+    <div class="ia-chip" data-q="Quais empreendimentos estão em Belém ou Ananindeua?">Empreendimentos em Belém/Ananindeua</div>
+  </div>
+</div>
+{% else %}
+<div class="ia-followup">
+  <form method="post" id="ia-form">
+    {% csrf_token %}
+    <div class="ia-inputbar">
+      {{ form.pergunta }}
+      <button type="submit">Perguntar</button>
+    </div>
   </form>
 </div>
 
-{% if resultado %}
 <div class="panel">
   <h2>Resposta</h2>
   <p style="white-space:pre-wrap;">{{ resultado.resposta }}</p>
@@ -40,4 +128,14 @@
   </div>
 </div>
 {% endif %}
+
+<script>
+document.querySelectorAll('.ia-chip').forEach(chip => {
+  chip.addEventListener('click', () => {
+    const textarea = document.querySelector('#ia-form textarea');
+    textarea.value = chip.dataset.q;
+    textarea.focus();
+  });
+});
+</script>
 {% endblock %}

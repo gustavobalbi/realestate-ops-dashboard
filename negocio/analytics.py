@@ -5,8 +5,9 @@ and templates stay simple.
 """
 
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
+from . import geo
 from .models import Cliente, Empreendimento, FinanceiroMensal, ObraAndamento, Venda
 from .normalize import norm_key, norm_nome_cliente, venda_esta_ativa
 
@@ -60,8 +61,26 @@ def _unidades_all():
     return Unidade.objects.only("id", "empreendimento_id").all()
 
 
-def piores_velocidades(n: int = 3) -> list[VelocidadeVendas]:
-    return velocidade_vendas()[:n]
+@dataclass
+class BarraVelocidade:
+    item: VelocidadeVendas
+    pior: bool
+    altura_pct: float  # 0-100, relative to the highest velocidade in the set
+
+
+def velocidade_chart(n_piores: int = 3) -> list[BarraVelocidade]:
+    """Descending left-to-right (best first), last n_piores flagged for the red highlight."""
+    itens = sorted(velocidade_vendas(), key=lambda r: r.velocidade, reverse=True)
+    maior = itens[0].velocidade if itens else 0.0
+    total = len(itens)
+    return [
+        BarraVelocidade(
+            item=it,
+            pior=(total - i) <= n_piores,
+            altura_pct=(it.velocidade / maior * 100) if maior else 0.0,
+        )
+        for i, it in enumerate(itens)
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +125,34 @@ def risco_estouro_custo() -> list[RiscoCusto]:
 
 def em_estouro(lista: list[RiscoCusto]) -> list[RiscoCusto]:
     return [r for r in lista if r.magnitude > 0]
+
+
+@dataclass
+class BarraRisco:
+    item: RiscoCusto
+    acima_da_media: bool
+    largura_pct: float  # 0-100, relative to the largest overrun magnitude
+
+
+def risco_chart() -> tuple[list[BarraRisco], float]:
+    """Descending top-to-bottom, highlighting bars above the mean overrun magnitude.
+
+    Returns (barras, media_magnitude).
+    """
+    itens = em_estouro(risco_estouro_custo())  # already sorted desc by magnitude
+    if not itens:
+        return [], 0.0
+    media = sum(r.magnitude for r in itens) / len(itens)
+    maior = itens[0].magnitude
+    barras = [
+        BarraRisco(
+            item=it,
+            acima_da_media=it.magnitude > media,
+            largura_pct=(it.magnitude / maior * 100) if maior else 0.0,
+        )
+        for it in itens
+    ]
+    return barras, media
 
 
 # ---------------------------------------------------------------------------
@@ -234,3 +281,32 @@ def inconsistencias_financeiro() -> list[InconsistenciaFinanceira]:
             )
     resultado.sort(key=lambda r: abs(r.diferenca), reverse=True)
     return resultado
+
+
+# ---------------------------------------------------------------------------
+# Mapa de navegação (não é uma das 4 perguntas -- visão geográfica auxiliar)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class MarcadorMapa:
+    cidade: str
+    uf: str
+    x: float
+    y: float
+    empreendimentos: list[Empreendimento] = field(default_factory=list)
+
+
+def mapa_marcadores() -> list[MarcadorMapa]:
+    por_cidade: dict[tuple[str, str], list[Empreendimento]] = defaultdict(list)
+    for e in Empreendimento.objects.all():
+        por_cidade[(e.cidade, e.uf)].append(e)
+
+    marcadores = []
+    for (cidade, uf), emps in por_cidade.items():
+        coords = geo.CITY_COORDS.get(cidade)
+        if coords is None:
+            continue
+        x, y = geo.project(*coords)
+        marcadores.append(MarcadorMapa(cidade=cidade, uf=uf, x=x, y=y, empreendimentos=emps))
+    return marcadores

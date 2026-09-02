@@ -50,10 +50,14 @@ negocio/           app único com toda a lógica de negócio
   normalize.py     regras de canonicalização de status/nome (grafia inconsistente)
   auth.py          autenticação simples por sessão contra a tabela usuarios
   analytics.py     lógica das 4 perguntas de negócio da seção 4 do briefing
+  geo.py           contorno do Brasil (SVG) + projeção lat/lon para o mapa do dashboard
   services.py      camada de escrita: registrar_venda / registrar_distrato
   nl_assistant.py  assistente de linguagem natural (texto-para-SQL com Gemini)
   views.py / urls.py / forms.py
   templates/negocio/*.html
+  templatetags/negocio_extras.py   filtro de template (nome + cidade/UF)
+static/img/        logo, monograma e foto de fachada da Cambará (gerados/tratados
+                    para este teste -- ver seção de identidade visual)
 data_cambara.sqlite3   cópia de trabalho da base fornecida (commitada de propósito,
                         para o avaliador rodar sem precisar copiar o .db original)
 ```
@@ -115,6 +119,36 @@ venda que, por essa lógica, já não está mais ativa.
    `|recalculado − reportado| > R$ 0,01` (tolerância de arredondamento).
 
 Cada premissa também aparece na própria tela do dashboard, ao lado do resultado.
+
+## Dashboard (tela inicial)
+
+- **Mapa de empreendimentos**: mapa do Brasil (SVG) com um marcador por cidade, tamanho
+  proporcional ao número de empreendimentos ali, tooltip com os nomes ao passar o mouse.
+  O contorno é o path `brazilMainland` extraído do arquivo *"Brazil location map.svg"*
+  (Wikimedia Commons, autor **NordNordWest**, licença
+  [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/deed.pt_BR),
+  https://commons.wikimedia.org/wiki/File:Brazil_location_map.svg). As coordenadas de cada
+  cidade são projetadas para o mesmo espaço do SVG usando a projeção equirretangular e os
+  limites geográficos documentados naquele arquivo (`negocio/geo.py:project`).
+- **Gráfico 1 — velocidade de vendas**: barras verticais, ordem decrescente da esquerda
+  para a direita, as 3 piores em destaque (vermelho).
+- **Gráfico 2 — risco de estouro de custo**: barras horizontais, ordem decrescente de cima
+  para baixo, destaque para os empreendimentos com estouro acima da média do grupo.
+- **Perguntas**: respostas em texto corrido para as perguntas 3 (clientes duplicados) e 4
+  (financeiro reportado vs. recalculado) — as que não fazem sentido como gráfico de barras.
+  A resposta da pergunta 4 é uma hipótese inicial ainda em revisão (documentado no próprio
+  texto da tela).
+- **Botão flutuante "IA"**: abre o assistente de linguagem natural
+  (`negocio/templates/negocio/assistente.html`), redesenhado como a tela inicial de um
+  chat de IA — pergunta centralizada, chips de perguntas sugeridas, resposta/SQL/tabela
+  aparecem abaixo após a primeira pergunta.
+
+Os gráficos são HTML/CSS puro (sem biblioteca de gráficos): a altura/largura de cada barra
+vem de uma porcentagem calculada em `negocio/analytics.py` e injetada via `style=""`. Isso
+exigiu desabilitar a localização pt-BR nesses valores especificamente
+(`{{ valor|floatformat:"2u" }}`) — com `USE_THOUSAND_SEPARATOR = True` ativo, o Django
+formata números com vírgula decimal por padrão, o que quebra CSS/SVG (`height: 100,0%` não
+é um valor válido).
 
 ## Autenticação — o que É e o que NÃO é
 
