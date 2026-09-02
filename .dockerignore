@@ -5,8 +5,11 @@ __pycache__/
 .git/
 .gitignore
 server.log
-*.sqlite3
-*.sqlite3-journal
+# data_cambara.sqlite3 é o banco de negócio da aplicação (ver README) -- precisa ir para
+# dentro da imagem. Só excluímos o journal (arquivo temporário de transação em aberto, não
+# faz sentido levar para a imagem) e qualquer outro *.sqlite3 solto (ex.: um banco de teste
+# local que não seja o próprio data_cambara.sqlite3).
+data_cambara.sqlite3-journal
 staticfiles/
 scripts/
 README.md
