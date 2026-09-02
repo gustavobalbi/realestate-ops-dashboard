@@ -9,18 +9,20 @@
     <h2>Mapa de empreendimentos</h2>
     <p class="premissa">{{ marcadores|length }} cidades, 22 empreendimentos. O tamanho de cada marcador é
     proporcional ao número de empreendimentos na cidade — passe o mouse para ver os nomes.</p>
-    <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
-      <path class="map-outline" d="{{ mapa_path_d }}"></path>
-      {% for m in marcadores %}
-      {% with n=m.empreendimentos|length %}
-      <g class="map-marker">
-        <title>{{ m.cidade }}/{{ m.uf }} — {% for e in m.empreendimentos %}{{ e.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</title>
-        <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{% if n > 1 %}34{% else %}20{% endif %}"></circle>
-        {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="8">{{ n }}</text>{% endif %}
-      </g>
-      {% endwith %}
-      {% endfor %}
-    </svg>
+    <div class="map-svg-wrap">
+      <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
+        <path class="map-outline" d="{{ mapa_path_d }}"></path>
+        {% for m in marcadores %}
+        {% with n=m.empreendimentos|length %}
+        <g class="map-marker">
+          <title>{{ m.cidade }}/{{ m.uf }} — {% for e in m.empreendimentos %}{{ e.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</title>
+          <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{% if n > 1 %}34{% else %}20{% endif %}"></circle>
+          {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="8">{{ n }}</text>{% endif %}
+        </g>
+        {% endwith %}
+        {% endfor %}
+      </svg>
+    </div>
   </div>
 
   <div>
