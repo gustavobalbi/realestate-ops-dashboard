@@ -4,12 +4,13 @@ adopts where the brief leaves the definition open, and returns plain dicts/lists
 and templates stay simple.
 """
 
+import math
 from collections import defaultdict
 from dataclasses import dataclass, field
 
 from . import geo
-from .models import Cliente, Empreendimento, FinanceiroMensal, ObraAndamento, Venda
-from .normalize import norm_key, norm_nome_cliente, venda_esta_ativa
+from .models import Cliente, Empreendimento, FinanceiroMensal, ObraAndamento, Unidade, Venda
+from .normalize import norm_key, norm_nome_cliente, norm_status_unidade, venda_esta_ativa
 
 MISMATCH_TOLERANCE = 0.01  # R$ rounding tolerance for the financeiro recalculation check
 
@@ -289,24 +290,107 @@ def inconsistencias_financeiro() -> list[InconsistenciaFinanceira]:
 
 
 @dataclass
+class EmpreendimentoResumo:
+    nome: str
+    cidade: str
+    uf: str
+    unidades_disponiveis: int
+
+
+@dataclass
 class MarcadorMapa:
     cidade: str
     uf: str
     x: float
     y: float
-    empreendimentos: list[Empreendimento] = field(default_factory=list)
+    raio: float
+    empreendimentos: list[EmpreendimentoResumo] = field(default_factory=list)
+
+
+def _raio_marcador(n_empreendimentos: int) -> float:
+    """Raio em px do círculo do marcador, crescendo com a raiz do nº de empreendimentos."""
+    return 14 + 22 * math.sqrt(n_empreendimentos)
+
+
+def _afastar_marcadores_sobrepostos(
+    pontos: list[dict], iteracoes: int = 300, folga: float = 6.0
+) -> None:
+    """Empurra marcadores cujos círculos se sobrepõem para longe um do outro, em pares,
+    até não haver mais sobreposição (ou esgotar as iterações). Cidades geograficamente
+    próximas (ex.: Belém/Ananindeua/Marituba, a poucos km uma da outra) ficam a poucos
+    pixels de distância neste mapa e, sem isso, o marcador de uma fica escondido atrás do
+    de outra -- normalize.py documenta achados de dados; este é um achado sobre a própria
+    visualização, não sobre a base."""
+    for _ in range(iteracoes):
+        moveu = False
+        for i in range(len(pontos)):
+            for j in range(i + 1, len(pontos)):
+                a, b = pontos[i], pontos[j]
+                dx = b["x"] - a["x"]
+                dy = b["y"] - a["y"]
+                dist = math.hypot(dx, dy)
+                dist_minima = a["raio"] + b["raio"] + folga
+                if dist < dist_minima:
+                    moveu = True
+                    if dist < 1e-6:
+                        ux, uy, dist = 1.0, 0.0, 1.0
+                    else:
+                        ux, uy = dx / dist, dy / dist
+                    empurrao = (dist_minima - dist) / 2
+                    a["x"] -= ux * empurrao
+                    a["y"] -= uy * empurrao
+                    b["x"] += ux * empurrao
+                    b["y"] += uy * empurrao
+        if not moveu:
+            break
 
 
 def mapa_marcadores() -> list[MarcadorMapa]:
+    unidades_disponiveis: dict[int, int] = defaultdict(int)
+    for u in Unidade.objects.only("id", "empreendimento_id", "status"):
+        if norm_status_unidade(u.status) == "disponivel":
+            unidades_disponiveis[u.empreendimento_id] += 1
+
     por_cidade: dict[tuple[str, str], list[Empreendimento]] = defaultdict(list)
     for e in Empreendimento.objects.all():
         por_cidade[(e.cidade, e.uf)].append(e)
 
-    marcadores = []
+    pontos = []
     for (cidade, uf), emps in por_cidade.items():
         coords = geo.CITY_COORDS.get(cidade)
         if coords is None:
             continue
         x, y = geo.project(*coords)
-        marcadores.append(MarcadorMapa(cidade=cidade, uf=uf, x=x, y=y, empreendimentos=emps))
-    return marcadores
+        resumos = [
+            EmpreendimentoResumo(
+                nome=e.nome,
+                cidade=cidade,
+                uf=uf,
+                unidades_disponiveis=unidades_disponiveis.get(e.id, 0),
+            )
+            for e in emps
+        ]
+        pontos.append(
+            {
+                "cidade": cidade,
+                "uf": uf,
+                "x": x,
+                "y": y,
+                "raio": _raio_marcador(len(emps)),
+                "empreendimentos": resumos,
+            }
+        )
+
+    _afastar_marcadores_sobrepostos(pontos)
+
+    return [
+        MarcadorMapa(
+            cidade=p["cidade"],
+            uf=p["uf"],
+            x=p["x"],
+            y=p["y"],
+            raio=p["raio"],
+            empreendimentos=p["empreendimentos"],
+        )
+        for p in pontos
+    ]
