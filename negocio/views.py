@@ -52,6 +52,7 @@ def dashboard_view(request):
         "inconsistencias": inconsistencias,
         "total_inconsistencias": len(inconsistencias),
         "total_financeiro": FinanceiroMensal.objects.count(),
+        "total_empreendimentos": Empreendimento.objects.count(),
     }
     return render(request, "negocio/dashboard.html", context)
 

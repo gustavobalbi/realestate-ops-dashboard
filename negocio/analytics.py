@@ -309,7 +309,7 @@ class MarcadorMapa:
 
 def _raio_marcador(n_empreendimentos: int) -> float:
     """Raio em px do círculo do marcador, crescendo com a raiz do nº de empreendimentos."""
-    return 14 + 22 * math.sqrt(n_empreendimentos)
+    return 24 + 32 * math.sqrt(n_empreendimentos)
 
 
 def _afastar_marcadores_sobrepostos(
