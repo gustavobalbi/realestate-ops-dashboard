@@ -72,28 +72,73 @@ pode não usar a acentuação exata da base: ex. WHERE noaccent(cidade) = noacce
 ou WHERE noaccent(cidade) LIKE '%' || noaccent('sao paulo') || '%'.
 
 empreendimentos(id, nome, cidade, uf, tipo, modelo_negocio, vgv_estimado, data_lancamento,
-  status, observacoes)  -- modelo_negocio tem grafia bem inconsistente na base (ex.:
-  "OBRA POR ADM", "obra por administracao", "Obra por Administração" convivem) -- sempre
-  compare com noaccent(TRIM(modelo_negocio)), nunca igualdade direta
+  status, observacoes)  -- um "empreendimento" é um projeto imobiliário completo (prédio,
+  condomínio ou loteamento), dividido em várias "unidades" (os imóveis individuais à venda).
+  - tipo: natureza do empreendimento -- Residencial / Comercial / Misto.
+  - modelo_negocio: modelo de negócio jurídico/financeiro do empreendimento -- só existem 2
+    categorias reais, "Obra por Administração" e "SPE Incorporadora" (SPE = Sociedade de
+    Propósito Específico), mas a base tem grafia bem inconsistente para elas (ex.:
+    "OBRA POR ADM", "obra por administracao", "incorporacao", "SPE incorporadora" convivem)
+    -- sempre compare com noaccent(TRIM(modelo_negocio)) LIKE, nunca igualdade direta.
+  - vgv_estimado: VGV = Valor Geral de Vendas, em reais (R$) -- a soma estimada do valor de
+    venda de todas as unidades do empreendimento, o "tamanho" financeiro do projeto.
+  - status: fase atual da obra em si -- Lançamento / Em obras / Concluído / Suspenso. Não
+    confundir com o percentual mês a mês de obra_andamento.percentual_conclusao (mais
+    granular) nem com unidades.status (esse é por unidade individual, vendida ou não).
 unidades(id, empreendimento_id, identificador, tipo, area_privativa_m2, valor_tabela,
-  status)  -- status: disponível/reservada/vendida/distrato/cancelado (grafias variadas)
-clientes(id, nome, cidade, uf, perfil, data_cadastro, email)
+  status)  -- cada linha é um imóvel individual dentro de um empreendimento (um apartamento,
+  uma sala etc.), o que de fato é vendido a um cliente.
+  - tipo: Apartamento / Cobertura / Loja / Sala Comercial.
+  - area_privativa_m2: área privativa em metros quadrados (m²).
+  - valor_tabela: preço de tabela (de venda oficial, R$) daquela unidade -- pode ser
+    diferente do valor_venda efetivamente pago (vendas.valor_venda), que reflete o negociado.
+  - status: disponível / reservada / vendida / distrato / cancelado (grafia bem variada:
+    "vendida", "Vendida", "VENDIDA" etc. convivem) -- sempre LOWER(TRIM(status)). "Cancelado"
+    é uma grafia histórica antiga para o mesmo evento que "Distrato" em vendas.status_venda
+    (venda que caiu); a regra de negócio atual da aplicação sempre devolve a unidade para
+    "Disponível" quando um distrato é registrado, mas linhas históricas antigas da base podem
+    não seguir isso.
+clientes(id, nome, cidade, uf, perfil, data_cadastro, email)  -- cada linha é uma pessoa ou
+  empresa que comprou (ou pode comprar) um imóvel. O e-mail é a chave real de identificação
+  do cliente (nomes iguais podem ser pessoas diferentes -- homônimos, não duplicidade).
+  - perfil: Morador (compra pra morar) / Investidor (compra pra alugar/revender) /
+    Institucional (empresa/fundo comprando em nome próprio).
 vendas(id, unidade_id, cliente_id, data_venda, valor_venda, forma_pagamento, status_venda,
-  data_distrato)  -- status_venda: ativa/distrato (grafias variadas, incl. "Distratada"). Em
-  37 linhas data_distrato está preenchida mas status_venda ainda diz "ativa" -- é um erro do
-  sistema de origem. data_distrato é a fonte de verdade: uma venda só conta como "ativa" se
-  LOWER(TRIM(status_venda)) começar com 'ativa' E data_distrato IS NULL.
+  data_distrato)  -- cada linha é a venda de uma unidade a um cliente.
+  - valor_venda: valor efetivamente vendido (R$), pode diferir do valor_tabela da unidade.
+  - forma_pagamento: À vista / Financiamento / Parcelado Direto (direto com a incorporadora,
+    sem banco).
+  - status_venda: ativa/distrato (grafias variadas, incl. "Distratada" e "ATIVA"). Em 37
+    linhas data_distrato está preenchida mas status_venda ainda diz "ativa" -- é um erro do
+    sistema de origem. data_distrato é a fonte de verdade: uma venda só conta como "ativa"
+    (em andamento, não cancelada) se LOWER(TRIM(status_venda)) começar com 'ativa' E
+    data_distrato IS NULL. "Distrato" = a venda foi cancelada/desfeita depois de já ter sido
+    fechada (diferente de uma unidade nunca ter sido vendida).
 obra_andamento(id, empreendimento_id, mes_referencia, percentual_conclusao,
-  custo_orcado_mes, custo_realizado_mes, observacoes)  -- acompanhamento de OBRA: orçado vs.
-  realizado, por mês. "Risco/magnitude de estouro de custo" = SUM(custo_realizado_mes) -
-  SUM(custo_orcado_mes) por empreendimento (positivo = estouro). custo_orcado_mes SÓ existe
-  aqui, nunca em financeiro_mensal -- não junte as duas tabelas para essa pergunta, cada uma
-  responde uma pergunta diferente.
+  custo_orcado_mes, custo_realizado_mes, observacoes)  -- acompanhamento físico-financeiro da
+  OBRA, uma linha por empreendimento por mês: o quanto da construção estava pronta e quanto
+  se gastou vs. o planejado naquele mês.
+  - percentual_conclusao: % da obra fisicamente concluída até aquele mês (0 a 100).
+  - custo_orcado_mes / custo_realizado_mes: custo de construção planejado vs. realmente
+    gasto naquele mês (R$). "Risco/magnitude de estouro de custo" =
+    SUM(custo_realizado_mes) - SUM(custo_orcado_mes) por empreendimento (positivo =
+    estourou o orçamento). custo_orcado_mes (valor planejado) SÓ existe aqui, nunca em
+    financeiro_mensal -- não junte as duas tabelas pra essa pergunta, cada uma responde uma
+    pergunta diferente (uma é acompanhamento de obra, a outra é resultado contábil).
 financeiro_mensal(id, empreendimento_id, mes_referencia, receita_reconhecida,
   custo_incorrido, despesas_corporativas_rat, resultado_reportado)  -- resultado financeiro
-  CONTÁBIL mensal já fechado (não tem valor orçado). "Resultado recalculado" =
-  receita_reconhecida - custo_incorrido - despesas_corporativas_rat; uma linha é
-  "inconsistente" quando esse valor difere de resultado_reportado (tolerância ~R$0,01).
+  CONTÁBIL mensal já fechado de cada empreendimento (não tem valor orçado/planejado, só o
+  que já aconteceu). Todos os valores em reais (R$).
+  - receita_reconhecida: receita contabilmente reconhecida no mês.
+  - custo_incorrido: custo de construção já incorrido (mesmo número que
+    obra_andamento.custo_realizado_mes, duplicado entre as duas tabelas).
+  - despesas_corporativas_rat: despesas corporativas (administrativas, não ligadas
+    diretamente à obra) rateadas para esse empreendimento naquele mês.
+  - resultado_reportado: o lucro/prejuízo do mês como foi reportado/publicado.
+  - "Resultado recalculado" = receita_reconhecida - custo_incorrido -
+    despesas_corporativas_rat; uma linha é "inconsistente" quando esse valor recalculado
+    difere do resultado_reportado (tolerância ~R$0,01) -- ou seja, o número publicado não
+    bate com a conta simples a partir dos outros três campos.
 usuarios(id, nome, email, papel, senha_hash)  -- nunca selecione senha_hash
 
 Relacionamentos: unidades.empreendimento_id -> empreendimentos.id;
@@ -283,12 +328,26 @@ def responder(pergunta: str) -> AssistantAnswer:
         ) from ultimo_erro
 
     answer_prompt = (
-        "Você é um assistente de dados da Cambará Empreendimentos. A consulta SQL abaixo foi "
-        "gerada especificamente para responder à pergunta do usuário e já foi executada com "
-        "sucesso no banco real -- confie no resultado dela como a resposta à pergunta (ex.: "
-        "uma única linha com um COUNT(...) é a contagem pedida). Responda em português, de "
-        "forma direta e objetiva, usando SOMENTE os dados retornados (não invente números). "
-        "Se a tabela estiver vazia, diga isso claramente em vez de adivinhar.\n\n"
+        "Você é um assistente de dados da Cambará Empreendimentos, escrevendo para um leitor "
+        "leigo (ex.: um diretor ou gerente comercial) que não conhece nomes de coluna nem "
+        "SQL -- use o dicionário de dados abaixo para traduzir tudo em termos de negócio "
+        "(ex.: diga \"empreendimento\", \"valor de venda\", nunca \"vgv_estimado\" ou "
+        "\"valor_venda\" literalmente). A consulta SQL foi gerada especificamente para "
+        "responder à pergunta do usuário e já foi executada com sucesso no banco real -- "
+        "confie no resultado dela como a resposta à pergunta (ex.: uma única linha com um "
+        "COUNT(...) é a contagem pedida). Responda em português, de forma direta e objetiva, "
+        "usando SOMENTE os dados retornados (não invente números). Se a tabela estiver "
+        "vazia, diga isso claramente em vez de adivinhar.\n\n"
+        "Formatação da resposta (obrigatória):\n"
+        "- Texto corrido, em frases completas, como se estivesse falando com a pessoa -- "
+        "sem markdown de nenhum tipo: nada de *, **, #, listas com \"-\" ou \"*\", nem "
+        "blocos de código. Só texto puro (pode quebrar em parágrafos com linha em branco).\n"
+        "- Todo valor monetário no padrão brasileiro, com prefixo R$, ponto como separador "
+        "de milhar e vírgula com 2 casas decimais -- ex.: R$ 1.234.567,89 (nunca "
+        "1234567.89, nunca R$1234567.89, nunca em notação científica).\n"
+        "- Percentuais com vírgula decimal e símbolo % -- ex.: 72,5%.\n"
+        "- Datas no formato dd/mm/aaaa.\n\n"
+        f"{schema}\n\n"
         f"Pergunta: {pergunta}\n\n"
         f"SQL executado: {sql}\n\n"
         f"Colunas do resultado: {colunas}\n"
