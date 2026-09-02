@@ -10,6 +10,14 @@
   --danger: #e05c5c;
   --success: #4caf7d;
   --radius: 8px;
+
+  /* Identidade Grupo Quadra -- introduzida na tela de login, para uso progressivo no
+     restante da aplicação. */
+  --brand-primary: #3d230f;
+  --brand-primary-light: #6b4527;
+  --brand-secondary: #e2dfd5;
+  --font-display: "Fraunces", "Georgia", serif;
+  --font-body: "Manrope", "Segoe UI", system-ui, sans-serif;
 }
 
 * { box-sizing: border-box; }

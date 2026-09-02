@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Cambará{% endblock %} · Cambará Empreendimentos</title>
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   {% if usuario_logado %}
   <div class="topbar">
     <div class="brand">CAMBARÁ <span>· soluções de negócio</span></div>
@@ -26,6 +27,7 @@
   </div>
   {% endif %}
 
+  {% block page %}
   <div class="container">
     {% if messages %}
     <ul class="messages">
@@ -36,5 +38,6 @@
     {% endif %}
     {% block content %}{% endblock %}
   </div>
+  {% endblock %}
 </body>
 </html>

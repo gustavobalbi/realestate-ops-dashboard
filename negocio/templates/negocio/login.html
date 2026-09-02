@@ -1,23 +1,199 @@
 {% extends "negocio/base.html" %}
+{% load static %}
 {% block title %}Entrar{% endblock %}
-{% block content %}
-<div class="login-wrap">
-  <div class="login-box panel">
-    <h2>Entrar</h2>
-    <p class="helptext">Use um dos usuários seed da base (ex.: candidato@cambara-teste.com.br).
-    Senha padrão: <code>trocar_no_setup</code> — veja o README.</p>
-    <form method="post">
-      {% csrf_token %}
-      <div class="field">
-        <label for="id_email">E-mail</label>
-        {{ form.email }}
-      </div>
-      <div class="field">
-        <label for="id_senha">Senha</label>
-        {{ form.senha }}
-      </div>
-      <button type="submit">Entrar</button>
-    </form>
+{% block body_class %}auth-body{% endblock %}
+
+{% block extra_head %}
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  .auth-shell {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+    font-family: var(--font-body);
+  }
+
+  .auth-visual {
+    position: relative;
+    flex: 1.15;
+    min-height: 100vh;
+    background: url("{% static 'img/predio.jpg' %}") center / cover no-repeat;
+  }
+  .auth-visual::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(180deg, rgba(61, 35, 15, 0.15) 0%, rgba(61, 35, 15, 0.55) 60%, rgba(61, 35, 15, 0.92) 100%),
+      linear-gradient(90deg, rgba(61, 35, 15, 0.35) 0%, rgba(61, 35, 15, 0) 35%, rgba(61, 35, 15, 0) 100%);
+  }
+  .auth-visual-mark {
+    position: absolute;
+    left: 48px;
+    bottom: 48px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .auth-visual-mark img { width: 40px; height: auto; display: block; }
+  .auth-visual-mark span {
+    color: var(--brand-secondary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    opacity: 0.9;
+  }
+
+  .auth-form-side {
+    flex: 1;
+    min-height: 100vh;
+    background: var(--brand-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+  }
+
+  .auth-form-col {
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .auth-logo { display: block; width: 220px; max-width: 70%; height: auto; margin: 0 auto 40px; }
+
+  .auth-heading {
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 30px;
+    color: var(--brand-primary);
+    text-align: center;
+    margin: 0 0 8px;
+  }
+  .auth-subheading {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--brand-primary-light);
+    text-align: center;
+    margin: 0 0 32px;
+    line-height: 1.5;
+  }
+  .auth-subheading code {
+    background: rgba(61, 35, 15, 0.08);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
+
+  .auth-messages { list-style: none; padding: 0; margin: 0 0 20px; }
+  .auth-messages li {
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    padding: 11px 14px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+  }
+  .auth-messages li.error { background: #fbe9e7; color: #8a3324; border: 1px solid #e3b6ab; }
+  .auth-messages li.success { background: #eaf3ea; color: #2f5233; border: 1px solid #b9d6ba; }
+
+  .auth-field { margin-bottom: 18px; }
+  .auth-field label {
+    display: block;
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--brand-primary);
+    margin-bottom: 7px;
+  }
+  .auth-field input[type="email"],
+  .auth-field input[type="password"],
+  .auth-field input[type="text"] {
+    width: 100%;
+    padding: 13px 15px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--brand-primary);
+    background: #fbfaf7;
+    border: 1.5px solid rgba(61, 35, 15, 0.18);
+    border-radius: 10px;
+    outline: none;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .auth-field input[type="email"]:focus,
+  .auth-field input[type="password"]:focus,
+  .auth-field input[type="text"]:focus {
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 3px rgba(61, 35, 15, 0.12);
+  }
+
+  .auth-submit {
+    width: 100%;
+    padding: 14px;
+    margin-top: 6px;
+    background: var(--brand-primary);
+    color: var(--brand-secondary);
+    border: none;
+    border-radius: 10px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 14.5px;
+    letter-spacing: 0.03em;
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+  .auth-submit:hover { filter: brightness(1.12); }
+
+  @media (max-width: 860px) {
+    .auth-shell { flex-direction: column; }
+    .auth-visual { flex: none; min-height: 42vh; }
+    .auth-form-side { min-height: auto; padding: 40px 24px 64px; }
+    .auth-visual-mark { left: 24px; bottom: 24px; }
+  }
+</style>
+{% endblock %}
+
+{% block page %}
+<div class="auth-shell">
+  <div class="auth-visual">
+    <div class="auth-visual-mark">
+      <img src="{% static 'img/cambara-mark.png' %}" alt="">
+      <span>Cambará Empreendimentos</span>
+    </div>
+  </div>
+
+  <div class="auth-form-side">
+    <div class="auth-form-col">
+      <img class="auth-logo" src="{% static 'img/logo-cambara.png' %}" alt="Cambará Empreendimentos">
+      <h1 class="auth-heading">Bem-vindo de volta</h1>
+      <p class="auth-subheading">Use um dos usuários seed da base (ex.: candidato@cambara-teste.com.br).
+      Senha padrão: <code>trocar_no_setup</code>.</p>
+
+      {% if messages %}
+      <ul class="auth-messages">
+        {% for message in messages %}
+        <li class="{{ message.tags }}">{{ message }}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="auth-field">
+          <label for="{{ form.email.id_for_label }}">E-mail</label>
+          {{ form.email }}
+        </div>
+        <div class="auth-field">
+          <label for="{{ form.senha.id_for_label }}">Senha</label>
+          {{ form.senha }}
+        </div>
+        <button type="submit" class="auth-submit">Entrar</button>
+      </form>
+    </div>
   </div>
 </div>
 {% endblock %}
