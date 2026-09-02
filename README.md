@@ -29,13 +29,13 @@ cp .env.example .env
 # edite .env e cole sua chave em GEMINI_API_KEY (grátis em https://aistudio.google.com/apikey)
 
 python manage.py migrate      # cria só a tabela de sessão do Django; não toca nas tabelas de negócio
-python manage.py seed_auth    # troca o placeholder "trocar_no_setup" em usuarios.senha_hash por um hash real
+python manage.py seed_auth    # define a senha de cada usuário (1ª palavra do nome + "123")
 python manage.py runserver
 ```
 
 Acesse `http://127.0.0.1:8000`. Login com qualquer e-mail da tabela `usuarios` (ex.:
-`candidato@cambara-teste.com.br`) e senha **`trocar_no_setup`** (todos os 5 usuários seed
-compartilham essa senha padrão após rodar `seed_auth` — ver limitações de autenticação
+`candidato@cambara-teste.com.br`) e a senha correspondente da tabela abaixo (cada usuário
+seed tem uma senha própria depois de rodar `seed_auth` — ver limitações de autenticação
 abaixo).
 
 Sem uma `GEMINI_API_KEY` válida, todo o resto da aplicação funciona normalmente; só a
@@ -49,8 +49,10 @@ negocio/           app único com toda a lógica de negócio
   models.py        7 modelos managed=False mapeando as tabelas originais
   normalize.py     regras de canonicalização de status/nome (grafia inconsistente)
   auth.py          autenticação simples por sessão contra a tabela usuarios
-  analytics.py     lógica das 4 perguntas de negócio da seção 4 do briefing
-  geo.py           contorno do Brasil (SVG) + projeção lat/lon para o mapa do dashboard
+  analytics.py     lógica das 4 perguntas de negócio da seção 4 do briefing, mais os
+                   dados agregados das 5 seções do carrossel do dashboard
+  geo.py           contorno do Brasil, contorno de cada UF e projeção lat/lon para os
+                   3 mapas do dashboard (empreendimentos, vendas, clientes por estado)
   services.py      camada de escrita: registrar_venda / registrar_distrato
   nl_assistant.py  assistente de linguagem natural (texto-para-SQL com Gemini)
   views.py / urls.py / forms.py
@@ -69,6 +71,18 @@ A base tem inconsistências de grafia propositais (ex.: `unidades.status` aparec
 foi: **nunca alterar dados históricos para "corrigir" grafia** — normalizar em Python na
 hora da leitura (`negocio/normalize.py`), e escrever sempre com grafia canônica a partir
 de agora (`negocio/services.py`). Isso evita perder rastro do que veio "sujo" da origem.
+Pela mesma razão, as colunas de texto (status, modelo_negocio etc.) permanecem como vieram
+na base — a comparação já é sempre case/accent-insensitive na leitura, então normalizar o
+dado bruto não mudaria nenhum resultado, só apagaria um achado de qualidade de dados que o
+teste pede para identificar.
+
+As 6 colunas de data (`data_lancamento`, `data_venda`, `data_distrato`, `data_cadastro`,
+e os dois `mes_referencia`) são declaradas como `DateField` em `negocio/models.py` — o
+SQLite não impõe tipo de coluna, então isso não altera o schema real (a coluna continua
+`TEXT` fisicamente, como confirmado via `PRAGMA table_info`); é só o Django passando a
+devolver `datetime.date` em vez de string crua nessas colunas, o que deixa comparações e
+agrupamentos por ano/mês mais corretos (antes eram feitos via fatiamento de string, ex.
+`data_venda[:4]`).
 
 **Achado de qualidade de dados:** toda unidade com status canônico `"cancelado"` tem uma
 venda vinculada com status canônico `"distrato"` — ou seja, `"Cancelado"` e `"Distrato"`
@@ -83,10 +97,11 @@ Verificado também: `unidades.status` e `vendas.status_venda` já são consisten
 uma vez normalizados (nenhuma unidade "vendida" com venda "distrato" e vice-versa) —
 então a única inconsistência real de estoque é a de `"cancelado"` acima.
 
-**Achado de qualidade de dados:** 37 das 150 linhas de `vendas` com `data_distrato`
-preenchida ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o sistema de
-origem falhou em atualizar esse campo ao registrar o distrato. `data_distrato` é tratado
-como a fonte de verdade (`negocio/normalize.py:venda_esta_ativa`): uma venda com data de
+**Achado de qualidade de dados:** 37 das linhas originais de `vendas` (as que já vieram
+com `data_distrato` preenchida na base entregue, antes de qualquer distrato registrado
+por esta aplicação) ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o
+sistema de origem falhou em atualizar esse campo ao registrar o distrato. `data_distrato`
+é tratado como a fonte de verdade (`negocio/normalize.py:venda_esta_ativa`): uma venda com data de
 distrato preenchida sempre conta como distrato, independente do que `status_venda` diga.
 Isso afeta a pergunta 1 (velocidade de vendas) e a listagem de "vendas ativas" na camada
 de escrita — sem essa correção, seria possível tentar registrar um segundo distrato numa
@@ -110,34 +125,69 @@ venda que, por essa lógica, já não está mais ativa.
    dashboard como "Nome — Cidade/UF" para deixar claro que são cadastros distintos. O
    dashboard também quantifica o erro que a primeira abordagem cometia: agregar por nome
    em vez de por uma chave distinta (e-mail) reduz artificialmente o número de "clientes"
-   e infla o ticket médio por cliente (de ~R$ 3,15 milhões para ~R$ 3,31 milhões nesta
+   e infla o ticket médio por cliente (de ~R$ 3,16 milhões para ~R$ 3,32 milhões nesta
    base) — exatamente a distorção que a pergunta de negócio pede para expor, só que na
    direção oposta da intuição inicial: o risco aqui era criar duplicidade que não existe,
    não deixar passar uma que existe.
 4. **Financeiro reportado vs. recalculado**: recalculado = `receita_reconhecida −
    custo_incorrido − despesas_corporativas_rat`; inconsistente quando
-   `|recalculado − reportado| > R$ 0,01` (tolerância de arredondamento).
+   `|recalculado − reportado| > R$ 0,01` (tolerância de arredondamento). Achado: 63 das 562
+   linhas de `financeiro_mensal` são inconsistentes, atingindo 29 dos 43 meses e 18 dos 22
+   empreendimentos — uma diferença acumulada (em módulo) de ~R$ 6,93 milhões. Hipótese mais
+   provável (a confirmar): lançamento de custo/despesa em competência diferente da do
+   relatório já publicado, ou uma rubrica que entra no resultado mas não está representada
+   nas colunas desta tabela.
 
-Cada premissa também aparece na própria tela do dashboard, ao lado do resultado.
+Cada premissa também aparece na própria tela do dashboard, ao lado do resultado — e, para
+as duas perguntas que não viram gráfico (3 e 4), o diagnóstico completo com os números
+acima fica disponível a um clique, no ícone "i" de cada seção (ver abaixo).
 
 ## Dashboard (tela inicial)
 
-- **Mapa de empreendimentos**: mapa do Brasil (SVG) com um marcador por cidade, tamanho
-  proporcional ao número de empreendimentos ali, tooltip com os nomes ao passar o mouse.
-  O contorno é o path `brazilMainland` extraído do arquivo *"Brazil location map.svg"*
+Um carrossel de 5 seções (setas ‹ › e título ao centro trocam de seção; o `hidden` de cada
+`<section>` é alternado em JS puro, sem framework). Cada seção tem, ao lado do título, um
+ícone **"i"** que abre um modal com o diagnóstico dos dados daquela seção — tabelas/colunas
+usadas, critério adotado e o achado de qualidade de dados relevante. É esse ícone que
+carrega a resposta às perguntas 3 (Clientes) e 4 (Financeiro) do briefing; a antiga seção
+de texto corrido "Perguntas" foi substituída por essa versão consultável para não poluir a
+tela com prosa.
+
+- **EMPREENDIMENTOS** — mapa do Brasil (SVG) com um marcador por cidade, tamanho
+  proporcional ao número de empreendimentos ali, tooltip com os nomes ao passar o mouse. O
+  contorno é o path `brazilMainland` extraído do arquivo *"Brazil location map.svg"*
   (Wikimedia Commons, autor **NordNordWest**, licença
   [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/deed.pt_BR),
-  https://commons.wikimedia.org/wiki/File:Brazil_location_map.svg). As coordenadas de cada
-  cidade são projetadas para o mesmo espaço do SVG usando a projeção equirretangular e os
-  limites geográficos documentados naquele arquivo (`negocio/geo.py:project`).
-- **Gráfico 1 — velocidade de vendas**: barras verticais, ordem decrescente da esquerda
-  para a direita, as 3 piores em destaque (vermelho).
-- **Gráfico 2 — risco de estouro de custo**: barras horizontais, ordem decrescente de cima
-  para baixo, destaque para os empreendimentos com estouro acima da média do grupo.
-- **Perguntas**: respostas em texto corrido para as perguntas 3 (clientes duplicados) e 4
-  (financeiro reportado vs. recalculado) — as que não fazem sentido como gráfico de barras.
-  A resposta da pergunta 4 é uma hipótese inicial ainda em revisão (documentado no próprio
-  texto da tela).
+  https://commons.wikimedia.org/wiki/File:Brazil_location_map.svg), com as coordenadas de
+  cada cidade projetadas para o mesmo espaço via projeção equirretangular
+  (`negocio/geo.py:project`). Ao lado, os gráficos "Velocidade de vendas" (barras
+  verticais, 3 piores em destaque) e "Risco de estouro de custo" (barras horizontais,
+  destaque para acima da média do grupo).
+- **CLIENTES** — mapa **coroplético** por UF: uma região por estado
+  (`negocio/geo.py:UF_PATHS`, contornos derivados do dataset MIT
+  [giuliano-macedo/geodata-br-states](https://github.com/giuliano-macedo/geodata-br-states),
+  simplificados e projetados com a mesma `project()` do mapa acima), cor interpolada de
+  branco (menor quantidade de clientes, e-mail distinto) a marrom (maior). Clicar num
+  estado fixa uma tooltip com o detalhamento por cidade e por perfil de cliente. Ao lado,
+  3 gráficos: frequência de compra por cliente (quantas vezes o mesmo cliente comprou),
+  ticket médio por perfil e contagem de clientes por perfil.
+- **VENDAS** — mesmo padrão de mapa, mas escopado a `data_distrato IS NULL` e com o
+  tamanho do marcador proporcional ao volume de vendas ativas na cidade. Clicar num
+  marcador fixa a tooltip; clicar num empreendimento dentro dela filtra os 3 gráficos ao
+  lado para aquele empreendimento (payload JSON embutido via `json_script`, sem round-trip
+  ao servidor). Os gráficos: vendas por período (barras por ano, com drill-down para os
+  meses ao clicar), valor de vendas por forma de pagamento, e por tipo de unidade.
+- **FINANCEIRO** — 3 cards com os números do achado da pergunta 4 (linhas, meses e
+  empreendimentos inconsistentes), gráfico de magnitude acumulada por empreendimento e
+  gráfico de inconsistências por período com o mesmo drill-down ano → mês da seção Vendas.
+- **OBRA** — não responde a uma das 4 perguntas do briefing; cobre o resto de
+  `obra_andamento` que não aparecia em nenhuma tela (`custo_orcado_mes`/
+  `custo_realizado_mes` já alimentam "Risco de estouro de custo" em Empreendimentos).
+  Gráfico de % de conclusão mais recente por empreendimento e de empreendimentos por
+  `status`. O ícone "i" também documenta um achado da investigação:
+  `financeiro_mensal.custo_incorrido` é exatamente igual a
+  `obra_andamento.custo_realizado_mes` nas 562 linhas de ambas as tabelas — o "custo
+  incorrido" do recálculo da pergunta 4 já é esse mesmo número, só duplicado em duas
+  tabelas.
 - **Botão flutuante "IA"**: abre o assistente de linguagem natural
   (`negocio/templates/negocio/assistente.html`), redesenhado como a tela inicial de um
   chat de IA — pergunta centralizada, chips de perguntas sugeridas, resposta/SQL/tabela
@@ -157,9 +207,10 @@ Login funcional contra a tabela `usuarios` já existente, **sem** `django.contri
 base, não um sistema de produção). Implementação em `negocio/auth.py`:
 
 - Senha comparada como `SHA-256(salt fixo + senha)` contra `usuarios.senha_hash`.
-- `manage.py seed_auth` troca o placeholder `"trocar_no_setup"` (que veio na base) pelo
-  hash real da mesma string, então a senha de demonstração de todos os usuários seed é
-  literalmente `trocar_no_setup`.
+- `manage.py seed_auth` define a senha de cada usuário seed como a primeira palavra do
+  próprio `nome` + `"123"` (ex.: "Diretoria Cambará" → `Diretoria123`) — substitui o
+  placeholder `"trocar_no_setup"` que vinha na base por uma senha própria e memorável por
+  usuário (ver tabela no fim deste documento).
 - Sessão via `django.contrib.sessions` (cookie assinado, tabela `django_session`).
 
 **Limitações conhecidas, documentadas conforme pedido no briefing:** salt fixo e global
@@ -192,13 +243,18 @@ ação, exibida ao usuário via Django messages.
 Abordagem escolhida para garantir que a resposta seja **rastreável aos dados reais e não
 uma alucinação** (`negocio/nl_assistant.py`):
 
-1. O Gemini recebe o schema das 7 tabelas (com aviso sobre grafia inconsistente e uma
-   função SQL customizada `noaccent()` registrada na conexão, para casar nomes/cidades
-   mesmo se a pergunta do usuário vier sem acento) e gera **uma única consulta SELECT**.
+1. O Gemini recebe o schema das 7 tabelas (com aviso sobre grafia inconsistente, uma
+   função SQL customizada `noaccent()` registrada na conexão para casar nomes/cidades
+   mesmo sem acento, e uma nota explícita distinguindo `obra_andamento` (orçado vs.
+   realizado) de `financeiro_mensal` (resultado contábil) — as duas tabelas têm colunas de
+   "custo" e o modelo já confundiu as duas ao montar um JOIN) e gera **uma única consulta
+   SELECT**.
 2. A consulta é validada (só `SELECT`/`WITH`, sem `;`, sem palavras-chave de
    escrita/pragma) e executada numa conexão SQLite **aberta em modo somente-leitura**
    (`?mode=ro`), independente da conexão do Django — mesmo que a validação falhasse, o
-   SQLite recusaria a escrita nessa conexão.
+   SQLite recusaria a escrita nessa conexão. Se a execução falhar (ex.: coluna na tabela
+   errada), o erro real do SQLite é devolvido ao Gemini para autocorreção, até
+   `MAX_TENTATIVAS_SQL` (3) tentativas, antes de desistir e mostrar o erro.
 3. As linhas retornadas (dados reais) são devolvidas ao Gemini, que é instruído a
    responder **somente com base nelas** e a dizer explicitamente quando a tabela vier
    vazia, em vez de adivinhar.
@@ -236,10 +292,12 @@ trocar de modelo sem alterar código.
 
 ## Usuários de demonstração
 
-| E-mail | Papel | Senha |
-|---|---|---|
-| diretoria@cambara-teste.com.br | diretoria | trocar_no_setup |
-| comercial@cambara-teste.com.br | comercial | trocar_no_setup |
-| engenharia@cambara-teste.com.br | engenharia | trocar_no_setup |
-| financeiro@cambara-teste.com.br | financeiro | trocar_no_setup |
-| candidato@cambara-teste.com.br | diretoria | trocar_no_setup |
+Senha = primeira palavra do `nome` do usuário + `"123"` (definida por `manage.py seed_auth`).
+
+| E-mail | Papel | Nome | Senha |
+|---|---|---|---|
+| diretoria@cambara-teste.com.br | diretoria | Diretoria Cambará | Diretoria123 |
+| comercial@cambara-teste.com.br | comercial | Comercial Cambará | Comercial123 |
+| engenharia@cambara-teste.com.br | engenharia | Engenharia Cambará | Engenharia123 |
+| financeiro@cambara-teste.com.br | financeiro | Financeiro Cambará | Financeiro123 |
+| candidato@cambara-teste.com.br | diretoria | Candidato Avaliador | Candidato123 |

@@ -41,7 +41,7 @@ def registrar_venda(
             cidade=cliente_novo.get("cidade") or "",
             uf=cliente_novo.get("uf") or "",
             perfil=cliente_novo.get("perfil") or "",
-            data_cadastro=(data_venda or dt.date.today()).isoformat(),
+            data_cadastro=data_venda or dt.date.today(),
             email=cliente_novo.get("email") or "",
         )
     else:
@@ -50,7 +50,7 @@ def registrar_venda(
     venda = Venda.objects.create(
         unidade=unidade,
         cliente=cliente,
-        data_venda=(data_venda or dt.date.today()).isoformat(),
+        data_venda=data_venda or dt.date.today(),
         valor_venda=valor_venda,
         forma_pagamento=forma_pagamento,
         status_venda="Ativa",
@@ -72,7 +72,7 @@ def registrar_distrato(*, venda_id: int, data_distrato: dt.date | None = None) -
         )
 
     venda.status_venda = "Distrato"
-    venda.data_distrato = (data_distrato or dt.date.today()).isoformat()
+    venda.data_distrato = data_distrato or dt.date.today()
     venda.save(update_fields=["status_venda", "data_distrato"])
 
     unidade = Unidade.objects.select_for_update().get(id=venda.unidade_id)

@@ -281,6 +281,47 @@
       </div>
     </div>
   </section>
+
+  <section class="carousel-slide" data-title="OBRA" data-info="info-obra" hidden>
+    <div class="panel">
+      <h2>Andamento de obra</h2>
+      <p class="premissa">Não é uma das 4 perguntas do briefing -- <code>obra_andamento</code> já alimenta
+        "Risco de estouro de custo" (aba Empreendimentos) via <code>custo_orcado_mes</code>/
+        <code>custo_realizado_mes</code>; aqui entram os dois dados dessa tabela que ainda não apareciam
+        em nenhuma tela.</p>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h2>% de conclusão por empreendimento</h2>
+        <p class="premissa">Percentual mais recente de <code>obra_andamento.percentual_conclusao</code>,
+          por empreendimento; mês de referência entre parênteses.</p>
+        <div class="chart-hbars neutro">
+          {% for i in conclusao_obra %}
+          <div class="bar-row">
+            <div class="label" title="{{ i.empreendimento.nome }}">{{ i.empreendimento.nome }}</div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ i.largura_pct|floatformat:"2u" }}%;"></div></div>
+            <div class="value">{{ i.percentual|floatformat:1 }}% ({{ i.mes_referencia|date:"m/Y" }})</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Empreendimentos por status</h2>
+        <p class="premissa">Contagem de <code>empreendimentos.status</code>.</p>
+        <div class="chart-hbars neutro">
+          {% for s in status_empreendimentos %}
+          <div class="bar-row">
+            <div class="label" title="{{ s.status }}">{{ s.status }}</div>
+            <div class="bar-track"><div class="bar-fill" style="width: {{ s.largura_pct|floatformat:"2u" }}%;"></div></div>
+            <div class="value">{{ s.total }} empreendimento{{ s.total|pluralize }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
 <div class="info-modal-overlay" id="infoOverlay" hidden>
@@ -410,6 +451,22 @@
     <p>Hipótese mais provável (a confirmar): lançamento de custo ou despesa em competência diferente da do
       relatório já publicado (ajuste retroativo não refletido no número reportado), ou uma rubrica que entra
       no cálculo de resultado mas não está representada nas colunas desta tabela.</p>
+  </div>
+
+  <div id="info-obra">
+    <h3>Sobre os dados: Obra</h3>
+    <p>Alimentada por <code>obra_andamento</code> e <code>empreendimentos.status</code>. Esta seção não
+      responde a uma das 4 perguntas do briefing -- é uma investigação à parte sobre o resto dessa tabela:
+      <code>custo_orcado_mes</code>/<code>custo_realizado_mes</code> já alimentam "Risco de estouro de
+      custo" na aba Empreendimentos; aqui entram <code>percentual_conclusao</code> (não usado em nenhuma
+      tela até então) e <code>status</code> (idem).</p>
+    <p><strong>As colunas de custo desta tabela entram na validação financeira (pergunta 4)?</strong>
+      Investigado: cruzando as 562 linhas de <code>obra_andamento</code> com as 562 de
+      <code>financeiro_mensal</code> por (empreendimento_id, mes_referencia), a chave bate 100% dos dois
+      lados, e <code>financeiro_mensal.custo_incorrido</code> é <strong>exatamente igual</strong> a
+      <code>obra_andamento.custo_realizado_mes</code> nas 562 linhas (diferença zero em todas). Ou seja: o
+      "custo incorrido" que entra no recálculo da pergunta 4 já é esse mesmo número, só duplicado em duas
+      tabelas -- não há uma inconsistência escondida nessa relação para reportar.</p>
   </div>
 </div>
 

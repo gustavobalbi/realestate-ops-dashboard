@@ -20,7 +20,7 @@
       <td>{{ v.unidade.empreendimento.nome }}</td>
       <td>{{ v.unidade.identificador }}</td>
       <td>{{ v.cliente.nome }}</td>
-      <td>{{ v.data_venda }}</td>
+      <td>{{ v.data_venda|date:"d/m/Y" }}</td>
       <td>R$ {{ v.valor_venda|floatformat:2 }}</td>
       <td>
         <form method="post" action="{% url 'distrato' v.id %}" onsubmit="return confirm('Confirmar distrato da venda #{{ v.id }}?');" style="margin:0;">

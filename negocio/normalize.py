@@ -23,6 +23,7 @@ date is counted as distrato regardless of what status_venda says (see venda_esta
 below).
 """
 
+import datetime as dt
 import unicodedata
 
 CANONICAL_UNIDADE = {
@@ -80,7 +81,7 @@ def norm_status_venda(value: str | None) -> str:
     return key
 
 
-def venda_esta_ativa(status_venda: str | None, data_distrato: str | None) -> bool:
+def venda_esta_ativa(status_venda: str | None, data_distrato: dt.date | None) -> bool:
     """True if a sale should be counted as active.
 
     data_distrato is authoritative over status_venda: a filled-in distrato date always

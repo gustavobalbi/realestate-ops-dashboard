@@ -49,6 +49,8 @@ def dashboard_view(request):
     resumo_financeiro = analytics.resumo_financeiro()
     inconsistencia_empreendimento = analytics.inconsistencia_por_empreendimento()
     inconsistencia_periodo = analytics.inconsistencia_por_periodo()
+    conclusao_obra = analytics.conclusao_por_empreendimento()
+    status_empreendimentos = analytics.contagem_por_status()
 
     context = {
         "chart_velocidade": chart_velocidade,
@@ -72,6 +74,8 @@ def dashboard_view(request):
         "resumo_financeiro": resumo_financeiro,
         "inconsistencia_empreendimento": inconsistencia_empreendimento,
         "inconsistencia_periodo": inconsistencia_periodo,
+        "conclusao_obra": conclusao_obra,
+        "status_empreendimentos": status_empreendimentos,
     }
     return render(request, "negocio/dashboard.html", context)
 

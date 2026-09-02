@@ -4,6 +4,7 @@ adopts where the brief leaves the definition open, and returns plain dicts/lists
 and templates stay simple.
 """
 
+import datetime as dt
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -291,7 +292,7 @@ def clientes_duplicados() -> AnaliseClientes:
 @dataclass
 class InconsistenciaFinanceira:
     empreendimento: Empreendimento
-    mes_referencia: str
+    mes_referencia: dt.date
     resultado_reportado: float
     resultado_recalculado: float
     diferenca: float
@@ -373,14 +374,73 @@ def inconsistencia_por_periodo() -> dict:
     drill-down ano -> mês do gráfico "Inconsistências por período" (ver template)."""
     por_ano: dict[str, dict] = {}
     for i in inconsistencias_financeiro():
-        ano = i.mes_referencia[:4]
-        mes = i.mes_referencia[5:7]
+        ano = str(i.mes_referencia.year)
+        mes = f"{i.mes_referencia.month:02d}"
         bucket = por_ano.setdefault(
             ano, {"total": 0, "meses": {f"{m:02d}": 0 for m in range(1, 13)}}
         )
         bucket["total"] += 1
         bucket["meses"][mes] += 1
     return dict(sorted(por_ano.items()))
+
+
+# ---------------------------------------------------------------------------
+# Carrossel -- seção "Obra": não é uma das 4 perguntas do briefing, mas cobre o resto de
+# obra_andamento que ainda não aparecia em nenhuma tela -- custo_orcado_mes/
+# custo_realizado_mes já alimentam "Risco de estouro de custo" (seção Empreendimentos);
+# aqui entram percentual_conclusao e empreendimentos.status, que não eram usados.
+#
+# Achado ao investigar se as colunas de custo desta tabela também entram na validação
+# financeira (pergunta 4): financeiro_mensal.custo_incorrido é EXATAMENTE igual a
+# obra_andamento.custo_realizado_mes nas 562 linhas de ambas as tabelas (mesma chave
+# empreendimento_id + mes_referencia, sem sobra de nenhum lado) -- ou seja, o "custo
+# incorrido" do recálculo financeiro já é esse mesmo número, só duplicado em duas
+# tabelas; não há uma inconsistência escondida aí para reportar.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ConclusaoObra:
+    empreendimento: Empreendimento
+    percentual: float
+    mes_referencia: dt.date
+    largura_pct: float
+
+
+def conclusao_por_empreendimento() -> list[ConclusaoObra]:
+    """Percentual de conclusão mais recente (maior mes_referencia) de cada
+    empreendimento -- largura_pct é o próprio percentual (0-100), não relativo ao maior
+    da lista, porque aqui o teto natural do gráfico é 100% concluído."""
+    mais_recente: dict[int, ObraAndamento] = {}
+    for o in ObraAndamento.objects.select_related("empreendimento").order_by("mes_referencia"):
+        mais_recente[o.empreendimento_id] = o
+
+    itens = [
+        ConclusaoObra(o.empreendimento, o.percentual_conclusao, o.mes_referencia, o.percentual_conclusao)
+        for o in mais_recente.values()
+    ]
+    itens.sort(key=lambda i: i.percentual, reverse=True)
+    return itens
+
+
+@dataclass
+class StatusEmpreendimento:
+    status: str
+    total: int
+    largura_pct: float
+
+
+def contagem_por_status() -> list[StatusEmpreendimento]:
+    contagem: dict[str, int] = defaultdict(int)
+    for e in Empreendimento.objects.all():
+        contagem[e.status] += 1
+
+    itens = [StatusEmpreendimento(s, n, 0.0) for s, n in contagem.items()]
+    itens.sort(key=lambda i: i.total, reverse=True)
+    maior = itens[0].total if itens else 0
+    for i in itens:
+        i.largura_pct = (i.total / maior * 100) if maior else 0.0
+    return itens
 
 
 # ---------------------------------------------------------------------------
@@ -802,8 +862,8 @@ def vendas_dashboard_payload() -> dict:
 
     def registrar(bucket: dict, venda: Venda) -> None:
         bucket["total_vendas"] += 1
-        ano = venda.data_venda[:4]
-        mes = venda.data_venda[5:7]
+        ano = str(venda.data_venda.year)
+        mes = f"{venda.data_venda.month:02d}"
         ano_bucket = bucket["por_ano"].setdefault(
             ano, {"total": 0, "meses": {f"{m:02d}": 0 for m in range(1, 13)}}
         )

@@ -19,7 +19,7 @@ class Empreendimento(models.Model):
     tipo = models.TextField()
     modelo_negocio = models.TextField()
     vgv_estimado = models.FloatField(null=True)
-    data_lancamento = models.TextField()
+    data_lancamento = models.DateField()
     status = models.TextField()
     observacoes = models.TextField(null=True, blank=True)
 
@@ -60,7 +60,7 @@ class Cliente(models.Model):
     cidade = models.TextField(null=True, blank=True)
     uf = models.TextField(null=True, blank=True)
     perfil = models.TextField(null=True, blank=True)
-    data_cadastro = models.TextField()
+    data_cadastro = models.DateField()
     email = models.TextField(null=True, blank=True)
 
     class Meta:
@@ -87,11 +87,11 @@ class Venda(models.Model):
         related_name="vendas",
         db_constraint=False,
     )
-    data_venda = models.TextField()
+    data_venda = models.DateField()
     valor_venda = models.FloatField()
     forma_pagamento = models.TextField()
     status_venda = models.TextField()
-    data_distrato = models.TextField(null=True, blank=True)
+    data_distrato = models.DateField(null=True, blank=True)
 
     class Meta:
         managed = False
@@ -110,7 +110,7 @@ class ObraAndamento(models.Model):
         related_name="medicoes",
         db_constraint=False,
     )
-    mes_referencia = models.TextField()
+    mes_referencia = models.DateField()
     percentual_conclusao = models.FloatField()
     custo_orcado_mes = models.FloatField()
     custo_realizado_mes = models.FloatField()
@@ -130,7 +130,7 @@ class FinanceiroMensal(models.Model):
         related_name="financeiro",
         db_constraint=False,
     )
-    mes_referencia = models.TextField()
+    mes_referencia = models.DateField()
     receita_reconhecida = models.FloatField()
     custo_incorrido = models.FloatField()
     despesas_corporativas_rat = models.FloatField()
