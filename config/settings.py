@@ -24,9 +24,10 @@ if not DEBUG:
     if SECRET_KEY.startswith("django-insecure-"):
         raise RuntimeError(
             "DJANGO_DEBUG=0 mas DJANGO_SECRET_KEY não foi definida -- configure uma chave "
-            "própria (App Setting no Azure App Service) antes de rodar em produção."
+            "própria (variável de ambiente no serviço de hospedagem) antes de rodar em "
+            "produção."
         )
-    # Azure App Service fica atrás de um proxy que termina o TLS e encaminha a requisição
+    # PaaS como Render ficam atrás de um proxy que termina o TLS e encaminha a requisição
     # por HTTP internamente, sinalizando o esquema original via X-Forwarded-Proto. Sem
     # isso o Django acha que toda requisição é HTTP e o CSRF do login/formulários falha.
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
@@ -133,3 +134,24 @@ SESSION_ENGINE = "django.contrib.sessions.backends.db"
 SESSION_COOKIE_AGE = 60 * 60 * 8  # 8h
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# O logging padrão do Django só imprime traceback de erro 500 no console quando
+# DEBUG=True (o handler "console" embutido tem um filtro require_debug_true) -- em
+# produção (DEBUG=False) o erro fica mudo por padrão, mesmo indo para o log do serviço de
+# hospedagem. Isso sobrescreve só o suficiente para sempre logar erro 500 com traceback no
+# stdout/stderr, que é o que a Render (e a maioria dos PaaS) captura como log do serviço --
+# sem isso, um erro em produção é invisível até alguém reproduzir localmente com DEBUG=True.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {
+        "console": {"class": "logging.StreamHandler"},
+    },
+    "loggers": {
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}

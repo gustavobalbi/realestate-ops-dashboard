@@ -1,7 +1,7 @@
-# Imagem de produção para Azure Container Apps. O driver ODBC do SQL Server fica
-# embutido na imagem (diferente do startup.sh do App Service, que precisava instalá-lo a
-# cada boot porque o filesystem do App Service não persiste) -- aqui só acontece uma vez,
-# no build.
+# Imagem de produção (Render, ou qualquer PaaS que builde a partir de um Dockerfile). O
+# driver ODBC do SQL Server fica embutido na imagem -- não é usado no caminho padrão
+# (SQLite, ver config/settings.py), mas fica pronto caso AZURE_SQL_SERVER seja definida no
+# futuro, sem precisar reconstruir a imagem para instalar dependência nova.
 # Fixado em "bookworm" (Debian 12) de propósito: "python:3.12-slim" simples aponta pra
 # uma versão do Debian mais nova cujo verificador de assinatura (sqv) rejeita a chave
 # SHA1 que o repositório da Microsoft ainda usa para o driver ODBC -- ver
