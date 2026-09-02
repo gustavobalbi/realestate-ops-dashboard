@@ -44,7 +44,9 @@ pode não usar a acentuação exata da base: ex. WHERE noaccent(cidade) = noacce
 ou WHERE noaccent(cidade) LIKE '%' || noaccent('sao paulo') || '%'.
 
 empreendimentos(id, nome, cidade, uf, tipo, modelo_negocio, vgv_estimado, data_lancamento,
-  status, observacoes)
+  status, observacoes)  -- modelo_negocio tem grafia bem inconsistente na base (ex.:
+  "OBRA POR ADM", "obra por administracao", "Obra por Administração" convivem) -- sempre
+  compare com noaccent(TRIM(modelo_negocio)), nunca igualdade direta
 unidades(id, empreendimento_id, identificador, tipo, area_privativa_m2, valor_tabela,
   status)  -- status: disponível/reservada/vendida/distrato/cancelado (grafias variadas)
 clientes(id, nome, cidade, uf, perfil, data_cadastro, email)

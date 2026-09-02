@@ -1,10 +1,12 @@
 """
-One-off setup step: replace the `trocar_no_setup` placeholder in usuarios.senha_hash
-with an actual salted SHA-256 hash of a default password, so the login screen works.
+One-off setup step: set every usuarios.senha_hash to a salted SHA-256 hash of a
+per-user demo password -- the first word of the user's own `nome` + "123" (ex.: "Diretoria
+Cambará" -> "Diretoria123"). Replaces the single shared placeholder password
+("trocar_no_setup") that ships with the base, so each seed user gets a distinct,
+memorable login for the demo.
 
-The default password is the same string the base ships with ("trocar_no_setup"), kept as
-the login password for every seed user for demo purposes. Run again with --password to
-set a different default for every seed user still on the placeholder.
+Safe to re-run: it always recomputes and overwrites senha_hash for every row in
+`usuarios`, so running it twice is a no-op (same input nome -> same password).
 """
 
 from django.core.management.base import BaseCommand
@@ -12,28 +14,25 @@ from django.core.management.base import BaseCommand
 from negocio.auth import hash_password
 from negocio.models import Usuario
 
-PLACEHOLDER = "trocar_no_setup"
+
+def senha_padrao(nome: str) -> str:
+    primeira_palavra = nome.strip().split()[0]
+    return f"{primeira_palavra}123"
 
 
 class Command(BaseCommand):
-    help = "Hashes the placeholder password for seed users in the usuarios table."
-
-    def add_arguments(self, parser):
-        parser.add_argument("--password", default=PLACEHOLDER)
+    help = "Define a senha de cada usuário como a primeira palavra do nome + '123'."
 
     def handle(self, *args, **options):
-        password = options["password"]
-        pending = Usuario.objects.filter(senha_hash=PLACEHOLDER)
-        count = 0
-        for usuario in pending:
-            usuario.senha_hash = hash_password(password)
+        usuarios = list(Usuario.objects.all())
+        if not usuarios:
+            self.stdout.write("Nenhum usuário encontrado na tabela usuarios.")
+            return
+
+        for usuario in usuarios:
+            senha = senha_padrao(usuario.nome)
+            usuario.senha_hash = hash_password(senha)
             usuario.save(update_fields=["senha_hash"])
-            count += 1
-        if count:
-            self.stdout.write(
-                self.style.SUCCESS(
-                    f"{count} usuário(s) atualizados. Senha de acesso: '{password}'."
-                )
-            )
-        else:
-            self.stdout.write("Nenhum usuário com placeholder pendente encontrado.")
+            self.stdout.write(f"{usuario.email} -> senha '{senha}'")
+
+        self.stdout.write(self.style.SUCCESS(f"{len(usuarios)} usuário(s) atualizados."))
