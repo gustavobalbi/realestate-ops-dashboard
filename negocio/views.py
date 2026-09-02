@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import analytics, auth, services
+from . import analytics, auth, geo, services
 from .forms import LoginForm, NovaVendaForm, PerguntaForm
 from .models import Cliente, Empreendimento, FinanceiroMensal, Unidade, Venda
 from .nl_assistant import AssistantError, responder
@@ -35,19 +35,21 @@ def logout_view(request):
 
 @auth.login_required
 def dashboard_view(request):
-    velocidades = analytics.velocidade_vendas()
-    piores = velocidades[:3]
-    riscos = analytics.risco_estouro_custo()
-    riscos_positivos = analytics.em_estouro(riscos)
+    chart_velocidade = analytics.velocidade_chart()
+    chart_risco, media_risco = analytics.risco_chart()
+    marcadores = analytics.mapa_marcadores()
     duplicidade = analytics.clientes_duplicados()
     inconsistencias = analytics.inconsistencias_financeiro()
 
     context = {
-        "velocidades": velocidades,
-        "piores": piores,
-        "riscos": riscos_positivos[:10],
+        "chart_velocidade": chart_velocidade,
+        "chart_risco": chart_risco,
+        "media_risco": media_risco,
+        "marcadores": marcadores,
+        "mapa_viewbox": geo.VIEWBOX,
+        "mapa_path_d": geo.BRASIL_PATH_D,
         "duplicidade": duplicidade,
-        "inconsistencias": inconsistencias[:15],
+        "inconsistencias": inconsistencias,
         "total_inconsistencias": len(inconsistencias),
         "total_financeiro": FinanceiroMensal.objects.count(),
     }

@@ -47,7 +47,10 @@ unidades(id, empreendimento_id, identificador, tipo, area_privativa_m2, valor_ta
   status)  -- status: disponível/reservada/vendida/distrato/cancelado (grafias variadas)
 clientes(id, nome, cidade, uf, perfil, data_cadastro, email)
 vendas(id, unidade_id, cliente_id, data_venda, valor_venda, forma_pagamento, status_venda,
-  data_distrato)  -- status_venda: ativa/distrato (grafias variadas, incl. "Distratada")
+  data_distrato)  -- status_venda: ativa/distrato (grafias variadas, incl. "Distratada"). Em
+  37 linhas data_distrato está preenchida mas status_venda ainda diz "ativa" -- é um erro do
+  sistema de origem. data_distrato é a fonte de verdade: uma venda só conta como "ativa" se
+  LOWER(TRIM(status_venda)) começar com 'ativa' E data_distrato IS NULL.
 obra_andamento(id, empreendimento_id, mes_referencia, percentual_conclusao,
   custo_orcado_mes, custo_realizado_mes, observacoes)
 financeiro_mensal(id, empreendimento_id, mes_referencia, receita_reconhecida,

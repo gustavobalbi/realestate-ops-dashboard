@@ -3,142 +3,100 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 
-<div class="panel">
-  <h2>1. Velocidade de vendas por empreendimento</h2>
-  <p class="premissa">Premissa: velocidade = vendas ativas (líquidas de distrato) / total de unidades
-  ofertadas no empreendimento. Uma venda conta como distrato sempre que <code>data_distrato</code>
-  está preenchida — inclusive nas 37 linhas em que <code>status_venda</code> ainda diz "ativa"
-  (achado: o sistema de origem falhou em atualizar esse campo ao registrar o distrato; ver README).</p>
+<div class="dash-top">
 
-  <h3 style="font-size:14px;color:var(--danger);">3 piores desempenhos relativos</h3>
-  <table>
-    <tr><th>Empreendimento</th><th>Unidades ofertadas</th><th>Vendas ativas</th><th>Velocidade</th></tr>
-    {% for v in piores %}
-    <tr>
-      <td>{{ v.empreendimento.nome }} <span class="helptext">({{ v.empreendimento.cidade }}/{{ v.empreendimento.uf }})</span></td>
-      <td>{{ v.total_unidades }}</td>
-      <td>{{ v.vendas_ativas }}</td>
-      <td><span class="badge warn">{{ v.velocidade|floatformat:1 }}%</span></td>
-    </tr>
-    {% endfor %}
-  </table>
-
-  <details style="margin-top:14px;">
-    <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver todos os {{ velocidades|length }} empreendimentos</summary>
-    <table style="margin-top:10px;">
-      <tr><th>Empreendimento</th><th>Unidades ofertadas</th><th>Vendas ativas</th><th>Velocidade</th></tr>
-      {% for v in velocidades %}
-      <tr>
-        <td>{{ v.empreendimento.nome }}</td>
-        <td>{{ v.total_unidades }}</td>
-        <td>{{ v.vendas_ativas }}</td>
-        <td>{{ v.velocidade|floatformat:1 }}%</td>
-      </tr>
+  <div class="panel map-panel">
+    <h2>Mapa de empreendimentos</h2>
+    <p class="premissa">{{ marcadores|length }} cidades, 22 empreendimentos. O tamanho de cada marcador é
+    proporcional ao número de empreendimentos na cidade — passe o mouse para ver os nomes.</p>
+    <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
+      <path class="map-outline" d="{{ mapa_path_d }}"></path>
+      {% for m in marcadores %}
+      {% with n=m.empreendimentos|length %}
+      <g class="map-marker">
+        <title>{{ m.cidade }}/{{ m.uf }} — {% for e in m.empreendimentos %}{{ e.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</title>
+        <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{% if n > 1 %}34{% else %}20{% endif %}"></circle>
+        {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="8">{{ n }}</text>{% endif %}
+      </g>
+      {% endwith %}
       {% endfor %}
-    </table>
-  </details>
-</div>
+    </svg>
+  </div>
 
-<div class="panel">
-  <h2>2. Risco de estouro de custo</h2>
-  <p class="premissa">Premissa: para cada empreendimento, soma-se custo orçado e custo realizado de todas
-  as medições em <code>obra_andamento</code>. Estouro = custo realizado acumulado maior que o orçado
-  acumulado; magnitude = diferença acumulada (R$). Ordenado do maior para o menor estouro.</p>
-  <table>
-    <tr><th>Empreendimento</th><th>Orçado acumulado</th><th>Realizado acumulado</th><th>Magnitude do estouro</th><th>%</th></tr>
-    {% for r in riscos %}
-    <tr>
-      <td>{{ r.empreendimento.nome }}</td>
-      <td>R$ {{ r.custo_orcado|floatformat:2 }}</td>
-      <td>R$ {{ r.custo_realizado|floatformat:2 }}</td>
-      <td><span class="badge warn">R$ {{ r.magnitude|floatformat:2 }}</span></td>
-      <td>{{ r.percentual|floatformat:1 }}%</td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="5">Nenhum empreendimento com estouro de custo identificado.</td></tr>
-    {% endfor %}
-  </table>
-</div>
-
-<div class="grid-2">
-  <div class="panel">
-    <h2>3. Clientes potencialmente duplicados</h2>
-    <p class="premissa">Verificação: a base não tem CPF/telefone, mas o e-mail já é uma chave própria
-    e distinta aqui — {{ duplicidade.emails_distintos }} e-mails distintos para
-    {{ duplicidade.total_clientes }} clientes. <strong>Não há indício de cadastro duplicado</strong> nesta
-    base. O que existe são homônimos: pessoas diferentes com o mesmo nome (mostradas abaixo como
-    "Nome — Cidade/UF"). Uma dedup ingênua por nome mesclaria essas pessoas por engano e distorceria o
-    ticket médio por cliente para cima — a comparação abaixo ilustra esse erro ao lado do valor correto.</p>
-
-    {% if duplicidade.duplicados_reais %}
-    <p class="premissa" style="border-color:var(--danger);">Atenção: {{ duplicidade.duplicados_reais|length }}
-    grupo(s) de clientes compartilham o mesmo e-mail — essas são duplicidades reais.</p>
-    <table style="margin-bottom:14px;">
-      <tr><th>E-mail</th><th>Clientes</th></tr>
-      {% for g in duplicidade.duplicados_reais %}
-      <tr>
-        <td>{{ g.clientes.0.email }}</td>
-        <td>{% for c in g.clientes %}{{ c|com_localizacao }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
-      </tr>
-      {% endfor %}
-    </table>
-    {% endif %}
-
-    <div class="grid-3">
-      <div class="stat">
-        <div class="value">{{ duplicidade.total_clientes }} = {{ duplicidade.emails_distintos }}</div>
-        <div class="label">clientes = e-mails distintos</div>
-      </div>
-      <div class="stat">
-        <div class="value">R$ {{ duplicidade.ticket_medio_correto|floatformat:0 }}</div>
-        <div class="label">ticket médio/cliente (correto, por e-mail)</div>
-      </div>
-      <div class="stat">
-        <div class="value">R$ {{ duplicidade.ticket_medio_ingenuo_por_nome|floatformat:0 }}</div>
-        <div class="label">ticket médio se agrupássemos por nome (errado)</div>
-      </div>
-    </div>
-    <details style="margin-top:10px;">
-      <summary style="cursor:pointer;color:var(--text-dim);font-size:13px;">Ver {{ duplicidade.homonimos|length }} grupos de homônimos (pessoas distintas)</summary>
-      <table style="margin-top:10px;">
-        <tr><th>Nome</th><th>Cadastros (nome — cidade/UF)</th></tr>
-        {% for g in duplicidade.homonimos %}
-        <tr>
-          <td>{{ g.clientes.0.nome }}</td>
-          <td>{% for c in g.clientes %}{{ c|com_localizacao }}{% if not forloop.last %}; {% endif %}{% endfor %}</td>
-        </tr>
+  <div>
+    <div class="panel">
+      <h2>1. Velocidade de vendas</h2>
+      <p class="premissa">Vendas ativas / unidades ofertadas, por empreendimento. Ordem decrescente da
+      esquerda para a direita; as 3 piores em destaque.</p>
+      <div class="chart-vbars">
+        {% for b in chart_velocidade %}
+        <div class="bar-col{% if b.pior %} pior{% endif %}" title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
+          <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+          <div class="bar-tick"></div>
+        </div>
         {% endfor %}
-      </table>
-    </details>
-  </div>
-
-  <div class="panel">
-    <h2>4. Financeiro reportado vs. recalculado</h2>
-    <p class="premissa">recalculado = receita_reconhecida − custo_incorrido − despesas_corporativas_rat.
-    Consideramos inconsistente quando |recalculado − reportado| > R$ 0,01.</p>
-    <div class="stat" style="text-align:left;">
-      <div class="value">{{ total_inconsistencias }} <span style="font-size:14px;color:var(--text-dim);">de {{ total_financeiro }} registros verificados</span></div>
-      <div class="label">meses/empreendimentos com resultado reportado ≠ recalculado</div>
+      </div>
+      <div class="chart-legend">
+        <span><i style="background:var(--chart-blue);"></i>Velocidade normal</span>
+        <span><i style="background:var(--chart-red);"></i>3 piores desempenhos</span>
+      </div>
     </div>
-    <table style="margin-top:10px;">
-      <tr><th>Empreendimento</th><th>Mês</th><th>Reportado</th><th>Recalculado</th><th>Diferença</th></tr>
-      {% for i in inconsistencias %}
-      <tr>
-        <td>{{ i.empreendimento.nome }}</td>
-        <td>{{ i.mes_referencia }}</td>
-        <td>R$ {{ i.resultado_reportado|floatformat:2 }}</td>
-        <td>R$ {{ i.resultado_recalculado|floatformat:2 }}</td>
-        <td><span class="badge warn">R$ {{ i.diferenca|floatformat:2 }}</span></td>
-      </tr>
-      {% endfor %}
-    </table>
+
+    <div class="panel">
+      <h2>2. Risco de estouro de custo</h2>
+      <p class="premissa">Magnitude do estouro (custo realizado − orçado) acumulado, só empreendimentos
+      com estouro. Ordem decrescente de cima para baixo; destaque para os acima da média
+      (R$ {{ media_risco|floatformat:0 }}).</p>
+      <div class="chart-hbars">
+        {% for b in chart_risco %}
+        <div class="bar-row{% if b.acima_da_media %} acima{% endif %}">
+          <div class="label" title="{{ b.item.empreendimento.nome }}">{{ b.item.empreendimento.nome }}</div>
+          <div class="bar-track"><div class="bar-fill" style="width: {{ b.largura_pct|floatformat:"2u" }}%;"></div></div>
+          <div class="value">R$ {{ b.item.magnitude|floatformat:0 }}</div>
+        </div>
+        {% endfor %}
+      </div>
+      <div class="chart-legend">
+        <span><i style="background:var(--chart-blue);"></i>Abaixo da média</span>
+        <span><i style="background:var(--chart-red);"></i>Acima da média</span>
+      </div>
+    </div>
   </div>
 </div>
+
+<hr class="divider">
 
 <div class="panel">
-  <h2>Pergunta livre sobre os dados</h2>
-  <p>Use o <a href="{% url 'assistente' %}">assistente em linguagem natural</a> para perguntas não
-  cobertas acima — a resposta vem acompanhada do SQL executado e da tabela de resultados reais.</p>
+  <h2>Perguntas</h2>
+
+  <div class="pergunta-bloco">
+    <h3>Há indícios de cadastros de clientes duplicados na base?</h3>
+    <p><strong>Não.</strong> A base não tem CPF/telefone, mas o e-mail já é uma chave própria e distinta
+    aqui: {{ duplicidade.total_clientes }} clientes cadastrados, {{ duplicidade.emails_distintos }}
+    e-mails distintos — mesmo depois de normalizar caixa e espaços, nenhum e-mail se repete. Isso descarta
+    duplicidade real de cadastro.</p>
+    <p>O que a base tem são {{ duplicidade.homonimos|length }} grupos de homônimos: pessoas diferentes que
+    compartilham o mesmo nome, geralmente distinguíveis pela cidade de cadastro. Se a análise fosse feita
+    ingenuamente por nome — tratando homônimos como se fossem a mesma pessoa — o número de "clientes
+    únicos" cairia artificialmente e o ticket médio por cliente subiria de forma equivocada, de
+    R$ {{ duplicidade.ticket_medio_correto|floatformat:0 }} para
+    R$ {{ duplicidade.ticket_medio_ingenuo_por_nome|floatformat:0 }} nesta base — distorcendo a métrica
+    justamente na direção oposta à que uma duplicidade real produziria.</p>
+  </div>
+
+  <div class="pergunta-bloco">
+    <h3>Existe inconsistência entre o resultado financeiro reportado e o recalculado?</h3>
+    <p>Sim: {{ total_inconsistencias }} das {{ total_financeiro }} linhas de
+    <code>financeiro_mensal</code> têm resultado reportado diferente de
+    receita_reconhecida − custo_incorrido − despesas_corporativas_rat, em alguns casos por mais de
+    R$ 2 milhões num único mês. Como hipótese a confirmar, a causa mais provável é lançamento de custo ou
+    despesa em competência diferente da do relatório já publicado (ajuste retroativo não refletido no
+    número reportado), ou uma rubrica que entra no cálculo de resultado mas não está representada nas
+    colunas desta tabela.</p>
+    <p>Esta resposta ainda está sob investigação e será revisada.</p>
+  </div>
 </div>
+
+<a href="{% url 'assistente' %}" class="ia-float">IA</a>
 
 {% endblock %}
