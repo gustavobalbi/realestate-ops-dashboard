@@ -1,3 +1,11 @@
 Django==6.1
 google-genai==2.21.0
 python-dotenv==1.2.3
+
+# Produção (Azure Container Apps ou App Service + Azure SQL Database) -- em dev local,
+# sem AZURE_SQL_SERVER definido, o app continua usando SQLite, e mssql-django/pyodbc
+# nunca são importados (gunicorn/whitenoise são sempre carregados, ver settings.py).
+gunicorn==23.0.0
+whitenoise==6.11.0
+mssql-django==1.8.0
+pyodbc==5.2.0

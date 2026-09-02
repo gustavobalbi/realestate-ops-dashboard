@@ -6,16 +6,26 @@ real data, not a model hallucination):
   1. Gemini receives the schema (with notes about messy status casing) and produces a
      single read-only SELECT.
   2. The SELECT is validated (single statement, SELECT-only, no write/pragma keywords)
-     and run against a *read-only* SQLite connection (opened with mode=ro), independent
-     of Django's connection. If SQLite rejects it (e.g. a column referenced on the wrong
-     table), the real error message is fed back to Gemini to self-correct, up to
-     MAX_TENTATIVAS_SQL attempts, before giving up and surfacing the error.
+     and run against a *read-only* connection, independent of Django's own connection --
+     SQLite opened with mode=ro locally, or a dedicated read-only SQL login on Azure SQL
+     Database in production (see _run_readonly_query). If the engine rejects it (e.g. a
+     column referenced on the wrong table), the real error message is fed back to Gemini
+     to self-correct, up to MAX_TENTATIVAS_SQL attempts, before giving up and surfacing
+     the error.
   3. The actual result rows are fed back to Gemini, which is instructed to answer using
      only those rows and to say so plainly if they don't answer the question.
 
 The UI (negocio/templates/negocio/assistente.html) always shows the generated SQL and the
 raw result table next to the answer, so the evaluator can verify the answer against the
 data themselves rather than trust the prose alone.
+
+Engine note: locally this runs against SQLite (django.db.backends.sqlite3); on Azure App
+Service it runs against Azure SQL Database (ENGINE "mssql", see config/settings.py). Both
+paths expose an identical noaccent(texto) SQL function to the model, so
+_schema_description() and the prompts below barely need to branch by engine (just the
+date-column note) -- the real per-engine work is in _run_readonly_query. On
+SQL Server, noaccent() is a real T-SQL scalar function created once during setup (see
+scripts/migrar_para_azure_sql.py), not a Python callback like SQLite's create_function.
 """
 
 from __future__ import annotations
@@ -30,12 +40,24 @@ from .normalize import strip_accents
 
 MAX_ROWS = 200
 
-SCHEMA_DESCRIPTION = """
-Tabelas disponíveis (SQLite). Todas as colunas de status/texto livre têm grafia
-inconsistente na base real (ex.: "vendida", "Vendida", "VENDIDA" convivem). SEMPRE compare
-essas colunas usando LOWER(TRIM(coluna)) e, quando fizer sentido, LIKE, nunca igualdade
-direta sensível a caixa. As colunas de data são armazenadas como TEXT no formato
-'YYYY-MM-DD'.
+
+def _usando_mssql() -> bool:
+    return settings.DATABASES["default"]["ENGINE"] == "mssql"
+
+
+def _schema_description() -> str:
+    nota_data = (
+        "As colunas de data são armazenadas como TEXT no formato 'YYYY-MM-DD'."
+        if not _usando_mssql()
+        else "As colunas de data são do tipo DATE nativo -- compare com literais "
+        "'YYYY-MM-DD' diretamente (ex.: data_venda >= '2024-01-01') ou com YEAR(coluna)/"
+        "MONTH(coluna), nunca fatiamento de string."
+    )
+    return f"""
+Tabelas disponíveis. Todas as colunas de status/texto livre têm grafia inconsistente na
+base real (ex.: "vendida", "Vendida", "VENDIDA" convivem). SEMPRE compare essas colunas
+usando LOWER(TRIM(coluna)) e, quando fizer sentido, LIKE, nunca igualdade direta sensível
+a caixa. {nota_data}
 
 Está disponível a função SQL customizada noaccent(texto), que remove acentos e caixa
 (retorna minúsculo sem acentuação). Use-a nos DOIS lados de qualquer comparação com nomes
@@ -123,6 +145,12 @@ def _validate_sql(sql: str) -> None:
 
 
 def _run_readonly_query(sql: str) -> tuple[list[str], list[tuple]]:
+    if _usando_mssql():
+        return _run_readonly_query_mssql(sql)
+    return _run_readonly_query_sqlite(sql)
+
+
+def _run_readonly_query_sqlite(sql: str) -> tuple[list[str], list[tuple]]:
     db_path = settings.DATABASES["default"]["NAME"]
     uri = f"file:{db_path}?mode=ro"
     con = sqlite3.connect(uri, uri=True)
@@ -132,6 +160,37 @@ def _run_readonly_query(sql: str) -> tuple[list[str], list[tuple]]:
         cur.execute(sql)
         colunas = [d[0] for d in cur.description] if cur.description else []
         linhas = cur.fetchmany(MAX_ROWS)
+        return colunas, linhas
+    finally:
+        con.close()
+
+
+def _run_readonly_query_mssql(sql: str) -> tuple[list[str], list[tuple]]:
+    """Conecta com um login SQL dedicado, só leitura (db_datareader), independente das
+    credenciais de leitura/escrita que o Django usa -- mesma garantia de defesa em
+    profundidade que o mode=ro do SQLite dá localmente: mesmo que a validação de SQL
+    acima falhasse, esse login não teria permissão de escrever nada. Ver
+    scripts/migrar_para_azure_sql.py para criar o login e o db_datareader."""
+    import os
+
+    import pyodbc
+
+    db = settings.DATABASES["default"]
+    usuario = os.environ.get("AZURE_SQL_READONLY_USER") or db["USER"]
+    senha = os.environ.get("AZURE_SQL_READONLY_PASSWORD") or db["PASSWORD"]
+    conn_str = (
+        f"DRIVER={{ODBC Driver 18 for SQL Server}};"
+        f"SERVER={db['HOST']},{db['PORT']};"
+        f"DATABASE={db['NAME']};"
+        f"UID={usuario};PWD={senha};"
+        "Encrypt=yes;TrustServerCertificate=no;"
+    )
+    con = pyodbc.connect(conn_str, timeout=30)
+    try:
+        cur = con.cursor()
+        cur.execute(sql)
+        colunas = [d[0] for d in cur.description] if cur.description else []
+        linhas = [tuple(row) for row in cur.fetchmany(MAX_ROWS)]
         return colunas, linhas
     finally:
         con.close()
@@ -163,35 +222,46 @@ MAX_TENTATIVAS_SQL = 3  # 1 geração inicial + até 2 autocorreções guiadas p
 
 def responder(pergunta: str) -> AssistantAnswer:
     client = _get_client()
+    schema = _schema_description()
 
     sql_prompt = (
-        f"{SCHEMA_DESCRIPTION}\n\n"
+        f"{schema}\n\n"
         f"Pergunta do usuário: {pergunta}\n\n"
-        "Gere APENAS uma consulta SQLite SELECT (ou WITH ... SELECT) que responda a essa "
+        "Gere APENAS uma consulta SQL SELECT (ou WITH ... SELECT) que responda a essa "
         "pergunta. Não use ponto e vírgula. Não explique nada, devolva só o SQL, em um "
         "bloco de código."
     )
     sql = _extract_sql(_generate(client, sql_prompt))
     _validate_sql(sql)
 
+    # sqlite3.Error e pyodbc.Error não têm ancestral comum além de Exception -- import
+    # lazy do pyodbc só quando de fato rodando contra o SQL Server (não instalado em dev
+    # local, ver requirements.txt).
+    if _usando_mssql():
+        import pyodbc
+
+        erros_sql: tuple[type[Exception], ...] = (pyodbc.Error,)
+    else:
+        erros_sql = (sqlite3.Error,)
+
     colunas: list[str] = []
     linhas: list[tuple] = []
-    ultimo_erro: sqlite3.Error | None = None
+    ultimo_erro: Exception | None = None
     for tentativa in range(MAX_TENTATIVAS_SQL):
         try:
             colunas, linhas = _run_readonly_query(sql)
             ultimo_erro = None
             break
-        except sqlite3.Error as exc:
+        except erros_sql as exc:
             ultimo_erro = exc
             if tentativa == MAX_TENTATIVAS_SQL - 1:
                 break
             correcao_prompt = (
-                f"{SCHEMA_DESCRIPTION}\n\n"
+                f"{schema}\n\n"
                 f"Pergunta do usuário: {pergunta}\n\n"
-                f"Você gerou esta consulta SQLite:\n{sql}\n\n"
+                f"Você gerou esta consulta SQL:\n{sql}\n\n"
                 f"Ela falhou ao executar no banco real com este erro:\n{exc}\n\n"
-                "Gere uma nova consulta SQLite SELECT (ou WITH ... SELECT) corrigida que "
+                "Gere uma nova consulta SQL SELECT (ou WITH ... SELECT) corrigida que "
                 "responda à pergunta original, evitando esse erro -- preste atenção em qual "
                 "tabela cada coluna realmente pertence antes de referenciá-la. Não use ponto "
                 "e vírgula. Não explique nada, devolva só o SQL corrigido, em um bloco de "
