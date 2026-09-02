@@ -33,6 +33,7 @@ from __future__ import annotations
 import re
 import sqlite3
 from dataclasses import dataclass
+from datetime import date
 
 from django.conf import settings
 
@@ -50,10 +51,15 @@ def _schema_description() -> str:
         "As colunas de data são armazenadas como TEXT no formato 'YYYY-MM-DD'."
         if not _usando_mssql()
         else "As colunas de data são do tipo DATE nativo -- compare com literais "
-        "'YYYY-MM-DD' diretamente (ex.: data_venda >= '2024-01-01') ou com YEAR(coluna)/"
-        "MONTH(coluna), nunca fatiamento de string."
+        "'AAAA-MM-DD' diretamente (ex.: data_venda >= 'AAAA-01-01', com o ano correto para "
+        "a pergunta) ou com YEAR(coluna)/MONTH(coluna), nunca fatiamento de string."
     )
     return f"""
+Hoje é {date.today().isoformat()} (AAAA-MM-DD). Use essa data como referência para
+qualquer expressão relativa na pergunta do usuário ("este ano", "no ano", "mês passado",
+"último trimestre" etc.) -- nunca assuma um ano diferente do atual sem o usuário pedir
+explicitamente por um ano específico.
+
 Tabelas disponíveis. Todas as colunas de status/texto livre têm grafia inconsistente na
 base real (ex.: "vendida", "Vendida", "VENDIDA" convivem). SEMPRE compare essas colunas
 usando LOWER(TRIM(coluna)) e, quando fizer sentido, LIKE, nunca igualdade direta sensível
