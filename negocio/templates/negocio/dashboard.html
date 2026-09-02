@@ -8,21 +8,37 @@
   <div class="panel map-panel">
     <h2>Mapa de empreendimentos</h2>
     <p class="premissa">{{ marcadores|length }} cidades, 22 empreendimentos. O tamanho de cada marcador é
-    proporcional ao número de empreendimentos na cidade — passe o mouse para ver os nomes.</p>
+    proporcional ao número de empreendimentos na cidade — passe o mouse para ver os nomes e as unidades
+    disponíveis. Cidades muito próximas (ex.: Belém/Ananindeua/Marituba) têm seus marcadores levemente
+    afastados para nenhum ficar escondido atrás de outro.</p>
     <div class="map-svg-wrap">
       <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
         <path class="map-outline" d="{{ mapa_path_d }}"></path>
         {% for m in marcadores %}
         {% with n=m.empreendimentos|length %}
-        <g class="map-marker">
-          <title>{{ m.cidade }}/{{ m.uf }} — {% for e in m.empreendimentos %}{{ e.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}</title>
-          <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{% if n > 1 %}34{% else %}20{% endif %}"></circle>
-          {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="8">{{ n }}</text>{% endif %}
+        <g class="map-marker" data-tooltip-id="map-tt-{{ forloop.counter }}" tabindex="0">
+          <circle cx="{{ m.x|floatformat:"2u" }}" cy="{{ m.y|floatformat:"2u" }}" r="{{ m.raio|floatformat:"2u" }}"></circle>
+          {% if n > 1 %}<text x="{{ m.x|floatformat:"2u" }}" y="{{ m.y|floatformat:"2u" }}" dy="9">{{ n }}</text>{% endif %}
         </g>
         {% endwith %}
         {% endfor %}
       </svg>
+      <div class="map-tooltip" id="mapTooltip"></div>
     </div>
+  </div>
+
+  <div hidden>
+    {% for m in marcadores %}
+    <div id="map-tt-{{ forloop.counter }}">
+      <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
+      {% for e in m.empreendimentos %}
+      <div class="map-tooltip-item">
+        <span class="map-tooltip-name">{{ e.nome }}</span>
+        <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }} dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
   </div>
 
   <div>
@@ -101,4 +117,42 @@
 
 <a href="{% url 'assistente' %}" class="ia-float">IA</a>
 
+<script>
+(function () {
+  const wrap = document.querySelector('.map-svg-wrap');
+  const tooltip = document.getElementById('mapTooltip');
+  if (!wrap || !tooltip) return;
+
+  function place(evt) {
+    const rect = wrap.getBoundingClientRect();
+    let left = evt.clientX - rect.left + 16;
+    let top = evt.clientY - rect.top + 16;
+    const maxLeft = rect.width - tooltip.offsetWidth - 8;
+    const maxTop = rect.height - tooltip.offsetHeight - 8;
+    tooltip.style.left = Math.max(8, Math.min(left, maxLeft)) + 'px';
+    tooltip.style.top = Math.max(8, Math.min(top, maxTop)) + 'px';
+  }
+
+  document.querySelectorAll('.map-marker').forEach(marker => {
+    const content = document.getElementById(marker.dataset.tooltipId);
+    if (!content) return;
+    marker.addEventListener('mouseenter', evt => {
+      tooltip.innerHTML = content.innerHTML;
+      tooltip.classList.add('visible');
+      place(evt);
+    });
+    marker.addEventListener('mousemove', place);
+    marker.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+    marker.addEventListener('focus', evt => {
+      tooltip.innerHTML = content.innerHTML;
+      tooltip.classList.add('visible');
+      const box = marker.getBoundingClientRect();
+      const rect = wrap.getBoundingClientRect();
+      tooltip.style.left = (box.left - rect.left + 16) + 'px';
+      tooltip.style.top = (box.top - rect.top + 16) + 'px';
+    });
+    marker.addEventListener('blur', () => tooltip.classList.remove('visible'));
+  });
+})();
+</script>
 {% endblock %}

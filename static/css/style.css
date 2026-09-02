@@ -118,7 +118,7 @@ tr:hover td { background: var(--panel-2); }
 .dash-top > .map-panel { display: flex; flex-direction: column; }
 .dash-top > div:last-child { display: flex; flex-direction: column; gap: 22px; }
 .dash-top > div:last-child .panel { margin-bottom: 0; }
-.map-svg-wrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
+.map-svg-wrap { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; }
 .map-svg-wrap svg { width: 100%; height: 100%; }
 @media (max-width: 900px) { .grid-2, .grid-3, .dash-top { grid-template-columns: 1fr; } }
 
@@ -261,7 +261,13 @@ button.danger { background: var(--danger); color: white; }
 /* --- Dashboard: mapa de navegação --- */
 
 .map-outline { fill: var(--panel-2); stroke: var(--brand-primary); stroke-width: 3; }
-.map-marker circle { fill: var(--chart-red); stroke: var(--panel); stroke-width: 3; cursor: pointer; }
+.map-marker circle {
+  fill: var(--chart-red);
+  stroke: var(--panel);
+  stroke-width: 3;
+  cursor: pointer;
+  transition: fill 0.12s ease;
+}
 .map-marker text {
   font-family: var(--font-body);
   font-size: 22px;
@@ -270,7 +276,41 @@ button.danger { background: var(--danger); color: white; }
   text-anchor: middle;
   pointer-events: none;
 }
-.map-marker:hover circle { fill: var(--brand-primary); }
+.map-marker:hover circle, .map-marker:focus circle { fill: var(--brand-primary); }
+.map-marker:focus { outline: none; }
+
+.map-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 30;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(4px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(61, 35, 15, 0.18);
+  padding: 12px 14px;
+  min-width: 220px;
+  max-width: 280px;
+}
+.map-tooltip.visible { opacity: 1; visibility: visible; transform: translateY(0); }
+.map-tooltip-city {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--brand-primary);
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.map-tooltip-item { margin-bottom: 6px; }
+.map-tooltip-item:last-child { margin-bottom: 0; }
+.map-tooltip-name { display: block; font-size: 13px; font-weight: 600; color: var(--text); }
+.map-tooltip-units { display: block; font-size: 12px; color: var(--text-dim); }
 
 /* --- Dashboard: seção de perguntas em prosa --- */
 
