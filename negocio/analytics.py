@@ -10,7 +10,13 @@ from dataclasses import dataclass, field
 
 from . import geo
 from .models import Cliente, Empreendimento, FinanceiroMensal, ObraAndamento, Unidade, Venda
-from .normalize import norm_key, norm_nome_cliente, norm_status_unidade, venda_esta_ativa
+from .normalize import (
+    norm_key,
+    norm_nome_cliente,
+    norm_status_unidade,
+    norm_status_venda,
+    venda_esta_ativa,
+)
 
 MISMATCH_TOLERANCE = 0.01  # R$ rounding tolerance for the financeiro recalculation check
 
@@ -157,6 +163,33 @@ def risco_chart() -> tuple[list[BarraRisco], float]:
 
 
 # ---------------------------------------------------------------------------
+# Achados de qualidade de dados por trás do critério "venda ativa" -- alimenta o ícone
+# de informação das seções Empreendimentos e Vendas do carrossel.
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class AchadosQualidadeVendas:
+    total_vendas: int
+    vendas_com_distrato: int
+    status_desatualizado: int  # data_distrato preenchida mas status_venda ainda "ativa"
+    vendas_ativas: int
+
+
+def achados_qualidade_vendas() -> AchadosQualidadeVendas:
+    todas = list(Venda.objects.all())
+    com_distrato = [v for v in todas if v.data_distrato]
+    desatualizado = [v for v in com_distrato if norm_status_venda(v.status_venda) == "ativa"]
+    ativas = sum(1 for v in todas if venda_esta_ativa(v.status_venda, v.data_distrato))
+    return AchadosQualidadeVendas(
+        total_vendas=len(todas),
+        vendas_com_distrato=len(com_distrato),
+        status_desatualizado=len(desatualizado),
+        vendas_ativas=ativas,
+    )
+
+
+# ---------------------------------------------------------------------------
 # 3) Clientes potencialmente duplicados
 # ---------------------------------------------------------------------------
 #
@@ -282,6 +315,72 @@ def inconsistencias_financeiro() -> list[InconsistenciaFinanceira]:
             )
     resultado.sort(key=lambda r: abs(r.diferenca), reverse=True)
     return resultado
+
+
+@dataclass
+class ResumoFinanceiro:
+    total_linhas: int
+    total_inconsistentes: int
+    total_meses: int
+    meses_inconsistentes: int
+    total_empreendimentos: int
+    empreendimentos_inconsistentes: int
+    magnitude_acumulada_abs: float
+
+
+def resumo_financeiro() -> ResumoFinanceiro:
+    incons = inconsistencias_financeiro()
+    return ResumoFinanceiro(
+        total_linhas=FinanceiroMensal.objects.count(),
+        total_inconsistentes=len(incons),
+        total_meses=len({f.mes_referencia for f in FinanceiroMensal.objects.only("mes_referencia")}),
+        meses_inconsistentes=len({i.mes_referencia for i in incons}),
+        total_empreendimentos=Empreendimento.objects.count(),
+        empreendimentos_inconsistentes=len({i.empreendimento.id for i in incons}),
+        magnitude_acumulada_abs=sum(abs(i.diferenca) for i in incons),
+    )
+
+
+@dataclass
+class InconsistenciaPorEmpreendimento:
+    empreendimento: Empreendimento
+    n_meses: int
+    magnitude_acumulada: float
+    largura_pct: float
+
+
+def inconsistencia_por_empreendimento() -> list[InconsistenciaPorEmpreendimento]:
+    agrupado: dict[int, dict] = {}
+    for i in inconsistencias_financeiro():
+        info = agrupado.setdefault(i.empreendimento.id, {"emp": i.empreendimento, "n": 0, "mag": 0.0})
+        info["n"] += 1
+        info["mag"] += abs(i.diferenca)
+
+    itens = [
+        InconsistenciaPorEmpreendimento(info["emp"], info["n"], info["mag"], 0.0)
+        for info in agrupado.values()
+    ]
+    itens.sort(key=lambda i: i.magnitude_acumulada, reverse=True)
+    maior = itens[0].magnitude_acumulada if itens else 0.0
+    for i in itens:
+        i.largura_pct = (i.magnitude_acumulada / maior * 100) if maior else 0.0
+    return itens
+
+
+def inconsistencia_por_periodo() -> dict:
+    """{"2023": {"total": N, "meses": {"01": n, ..., "12": n}}, ...}, serializável em JSON --
+    mesmo formato de vendas_dashboard_payload()["geral"]["por_ano"], para alimentar o
+    drill-down ano -> mês do gráfico "Inconsistências por período" (ver template)."""
+    por_ano: dict[str, dict] = {}
+    for i in inconsistencias_financeiro():
+        ano = i.mes_referencia[:4]
+        mes = i.mes_referencia[5:7]
+        bucket = por_ano.setdefault(
+            ano, {"total": 0, "meses": {f"{m:02d}": 0 for m in range(1, 13)}}
+        )
+        bucket["total"] += 1
+        bucket["meses"][mes] += 1
+    return dict(sorted(por_ano.items()))
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +590,202 @@ def mapa_marcadores_vendas() -> list[MarcadorMapa]:
     ]
 
 
+# ---------------------------------------------------------------------------
+# Carrossel -- seção "Clientes": mapa coroplético por UF, frequência de compra
+# por cliente e ticket médio por perfil.
+#
+# "Quantidade de clientes" é sempre deduplicada por e-mail normalizado (mesma chave de
+# clientes_duplicados() acima), a pedido explícito -- ainda que nesta base as duas
+# contagens coincidam (2691 clientes = 2691 e-mails distintos), a dedup é aplicada de
+# qualquer forma para não depender dessa coincidência.
+# ---------------------------------------------------------------------------
+
+
+def _clientes_unicos_por_email() -> list[Cliente]:
+    vistos: set[str] = set()
+    unicos = []
+    for c in Cliente.objects.all():
+        chave = norm_key(c.email)
+        if chave in vistos:
+            continue
+        vistos.add(chave)
+        unicos.append(c)
+    return unicos
+
+
+@dataclass
+class CidadeClientes:
+    cidade: str
+    total: int
+    por_perfil: dict[str, int]
+
+
+@dataclass
+class UFClientes:
+    uf: str
+    total: int
+    cidades: list[CidadeClientes]
+
+
+def clientes_por_uf() -> dict[str, UFClientes]:
+    por_uf_cidade: dict[str, dict[str, dict[str, int]]] = defaultdict(
+        lambda: defaultdict(lambda: defaultdict(int))
+    )
+    for c in _clientes_unicos_por_email():
+        if not c.uf or not c.cidade:
+            continue
+        por_uf_cidade[c.uf][c.cidade][c.perfil or "Não informado"] += 1
+
+    resultado = {}
+    for uf, cidades in por_uf_cidade.items():
+        lista = []
+        total_uf = 0
+        for cidade, por_perfil in cidades.items():
+            total_cidade = sum(por_perfil.values())
+            total_uf += total_cidade
+            lista.append(CidadeClientes(cidade, total_cidade, dict(por_perfil)))
+        lista.sort(key=lambda c: -c.total)
+        resultado[uf] = UFClientes(uf, total_uf, lista)
+    return resultado
+
+
+def _cor_coropletica(intensidade: float) -> str:
+    """Interpola branco (#ffffff, menor quantidade) até marrom Cambará
+    (--brand-primary, #3d230f, maior quantidade). intensidade em [0, 1]."""
+    intensidade = max(0.0, min(1.0, intensidade))
+    r0, g0, b0 = 0xFF, 0xFF, 0xFF
+    r1, g1, b1 = 0x3D, 0x23, 0x0F
+    r = round(r0 + (r1 - r0) * intensidade)
+    g = round(g0 + (g1 - g0) * intensidade)
+    b = round(b0 + (b1 - b0) * intensidade)
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+@dataclass
+class RegiaoMapaClientes:
+    uf: str
+    nome: str
+    path_d: str
+    total: int
+    cor: str
+    cidades: list[CidadeClientes]
+
+
+def mapa_coropletico_clientes() -> tuple[list[RegiaoMapaClientes], int]:
+    """Uma região por UF definida em geo.UF_PATHS; UFs sem cliente cadastrado nesta
+    base entram com total=0 (branco), preservando o contorno do país. Retorna
+    (regiões, maior_total) -- o maior_total alimenta a legenda de cor do mapa."""
+    por_uf = clientes_por_uf()
+    maior_total = max((r.total for r in por_uf.values()), default=0)
+
+    regioes = []
+    for uf, path_d in geo.UF_PATHS.items():
+        info = por_uf.get(uf)
+        total = info.total if info else 0
+        intensidade = (total / maior_total) if maior_total else 0.0
+        regioes.append(
+            RegiaoMapaClientes(
+                uf=uf,
+                nome=geo.UF_NOME.get(uf, uf),
+                path_d=path_d,
+                total=total,
+                cor=_cor_coropletica(intensidade),
+                cidades=info.cidades if info else [],
+            )
+        )
+    regioes.sort(key=lambda r: r.nome)
+    return regioes, maior_total
+
+
+@dataclass
+class FrequenciaCompra:
+    n_compras: int
+    n_clientes: int
+    altura_pct: float
+
+
+def frequencia_compras() -> list[FrequenciaCompra]:
+    """Quantas vezes cada cliente aparece em vendas (todas as vendas já registradas,
+    incluindo as com distrato -- a pergunta é sobre quantas vezes o cliente comprou ao
+    longo do histórico, não quantas compras seguem ativas hoje). Só entram clientes com
+    pelo menos 1 venda; quem nunca comprou não é "frequência de compra"."""
+    por_cliente: dict[int, int] = defaultdict(int)
+    for v in Venda.objects.only("cliente_id"):
+        por_cliente[v.cliente_id] += 1
+
+    distribuicao: dict[int, int] = defaultdict(int)
+    for n_compras in por_cliente.values():
+        distribuicao[n_compras] += 1
+
+    maior = max(distribuicao.values(), default=0)
+    return [
+        FrequenciaCompra(
+            n_compras=n,
+            n_clientes=distribuicao[n],
+            altura_pct=(distribuicao[n] / maior * 100) if maior else 0.0,
+        )
+        for n in sorted(distribuicao)
+    ]
+
+
+@dataclass
+class TicketMedioPerfil:
+    perfil: str
+    ticket_medio: float
+    n_clientes: int
+    largura_pct: float
+
+
+def ticket_medio_por_perfil() -> list[TicketMedioPerfil]:
+    """Mesma definição de ticket médio de clientes_duplicados() (receita / clientes
+    compradores distintos), agora quebrada por perfil em vez de agregada."""
+    perfil_por_id = {c.id: (c.perfil or "Não informado") for c in Cliente.objects.all()}
+    valor_por_perfil: dict[str, float] = defaultdict(float)
+    clientes_por_perfil: dict[str, set[int]] = defaultdict(set)
+    for v in Venda.objects.only("cliente_id", "valor_venda"):
+        perfil = perfil_por_id.get(v.cliente_id, "Não informado")
+        valor_por_perfil[perfil] += v.valor_venda
+        clientes_por_perfil[perfil].add(v.cliente_id)
+
+    itens = [
+        TicketMedioPerfil(
+            perfil=perfil,
+            ticket_medio=(valor_por_perfil[perfil] / len(clientes_por_perfil[perfil])),
+            n_clientes=len(clientes_por_perfil[perfil]),
+            largura_pct=0.0,
+        )
+        for perfil in valor_por_perfil
+    ]
+    itens.sort(key=lambda i: i.ticket_medio, reverse=True)
+    maior = itens[0].ticket_medio if itens else 0.0
+    for i in itens:
+        i.largura_pct = (i.ticket_medio / maior * 100) if maior else 0.0
+    return itens
+
+
+@dataclass
+class ContagemPerfil:
+    perfil: str
+    total: int
+    largura_pct: float
+
+
+def contagem_clientes_por_perfil() -> list[ContagemPerfil]:
+    """Quantidade de clientes cadastrados por perfil (base toda, não só compradores --
+    complementa ticket_medio_por_perfil, que olha só quem comprou). Dedup por e-mail,
+    mesma chave usada no resto da seção Clientes."""
+    contagem: dict[str, int] = defaultdict(int)
+    for c in _clientes_unicos_por_email():
+        contagem[c.perfil or "Não informado"] += 1
+
+    itens = [ContagemPerfil(perfil=p, total=n, largura_pct=0.0) for p, n in contagem.items()]
+    itens.sort(key=lambda i: i.total, reverse=True)
+    maior = itens[0].total if itens else 0
+    for i in itens:
+        i.largura_pct = (i.total / maior * 100) if maior else 0.0
+    return itens
+
+
 def vendas_dashboard_payload() -> dict:
     """Dados agregados da seção Vendas -- geral e por empreendimento -- num único
     dicionário serializável em JSON. Enviado à página inteiro (negocio/base é uma base
@@ -502,6 +797,7 @@ def vendas_dashboard_payload() -> dict:
             "total_vendas": 0,
             "por_ano": {},
             "por_pagamento": {},
+            "por_tipo_unidade": {},
         }
 
     def registrar(bucket: dict, venda: Venda) -> None:
@@ -518,6 +814,11 @@ def vendas_dashboard_payload() -> dict:
         )
         pag_bucket["count"] += 1
         pag_bucket["valor"] += venda.valor_venda
+        tipo_bucket = bucket["por_tipo_unidade"].setdefault(
+            venda.unidade.tipo, {"count": 0, "valor": 0.0}
+        )
+        tipo_bucket["count"] += 1
+        tipo_bucket["valor"] += venda.valor_venda
 
     geral = bucket_vazio()
     por_empreendimento: dict[str, dict] = {}

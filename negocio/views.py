@@ -6,7 +6,7 @@ from django.views.decorators.http import require_POST
 
 from . import analytics, auth, geo, services
 from .forms import LoginForm, NovaVendaForm, PerguntaForm
-from .models import Cliente, Empreendimento, FinanceiroMensal, Unidade, Venda
+from .models import Cliente, Empreendimento, Unidade, Venda
 from .nl_assistant import AssistantError, responder
 from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, venda_esta_ativa
 
@@ -38,10 +38,17 @@ def dashboard_view(request):
     chart_velocidade = analytics.velocidade_chart()
     chart_risco, media_risco = analytics.risco_chart()
     marcadores = analytics.mapa_marcadores()
-    duplicidade = analytics.clientes_duplicados()
-    inconsistencias = analytics.inconsistencias_financeiro()
     marcadores_vendas = analytics.mapa_marcadores_vendas()
     vendas_payload = analytics.vendas_dashboard_payload()
+    regioes_clientes, clientes_max_uf = analytics.mapa_coropletico_clientes()
+    frequencia_compras = analytics.frequencia_compras()
+    ticket_medio_perfil = analytics.ticket_medio_por_perfil()
+    contagem_clientes_perfil = analytics.contagem_clientes_por_perfil()
+    duplicidade = analytics.clientes_duplicados()
+    achados_vendas = analytics.achados_qualidade_vendas()
+    resumo_financeiro = analytics.resumo_financeiro()
+    inconsistencia_empreendimento = analytics.inconsistencia_por_empreendimento()
+    inconsistencia_periodo = analytics.inconsistencia_por_periodo()
 
     context = {
         "chart_velocidade": chart_velocidade,
@@ -50,14 +57,21 @@ def dashboard_view(request):
         "marcadores": marcadores,
         "mapa_viewbox": geo.VIEWBOX,
         "mapa_path_d": geo.BRASIL_PATH_D,
-        "duplicidade": duplicidade,
-        "inconsistencias": inconsistencias,
-        "total_inconsistencias": len(inconsistencias),
-        "total_financeiro": FinanceiroMensal.objects.count(),
         "total_empreendimentos": Empreendimento.objects.count(),
         "marcadores_vendas": marcadores_vendas,
         "total_vendas_ativas": vendas_payload["geral"]["total_vendas"],
         "vendas_payload": vendas_payload,
+        "regioes_clientes": regioes_clientes,
+        "clientes_max_uf": clientes_max_uf,
+        "total_clientes_unicos": sum(r.total for r in regioes_clientes),
+        "frequencia_compras": frequencia_compras,
+        "ticket_medio_perfil": ticket_medio_perfil,
+        "contagem_clientes_perfil": contagem_clientes_perfil,
+        "duplicidade": duplicidade,
+        "achados_vendas": achados_vendas,
+        "resumo_financeiro": resumo_financeiro,
+        "inconsistencia_empreendimento": inconsistencia_empreendimento,
+        "inconsistencia_periodo": inconsistencia_periodo,
     }
     return render(request, "negocio/dashboard.html", context)
 

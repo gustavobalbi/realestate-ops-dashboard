@@ -7,10 +7,12 @@
   <div class="carousel-nav">
     <button type="button" class="carousel-arrow" data-dir="-1" aria-label="Seção anterior">‹</button>
     <h2 class="carousel-title" id="carouselTitle">EMPREENDIMENTOS</h2>
+    <button type="button" class="info-btn" id="infoBtn" aria-label="Sobre os dados desta seção"
+      title="Sobre os dados desta seção">i</button>
     <button type="button" class="carousel-arrow" data-dir="1" aria-label="Próxima seção">›</button>
   </div>
 
-  <section class="carousel-slide" data-title="EMPREENDIMENTOS">
+  <section class="carousel-slide" data-title="EMPREENDIMENTOS" data-info="info-empreendimentos">
     <div class="dash-top">
 
       <div class="panel map-panel">
@@ -37,14 +39,15 @@
 
       <div>
         <div class="panel">
-          <h2>1. Velocidade de vendas</h2>
+          <h2>Velocidade de vendas</h2>
           <p class="premissa">Vendas ativas / unidades ofertadas, por empreendimento. Ordem decrescente da
-          esquerda para a direita; as 3 piores em destaque.</p>
+            esquerda para a direita; as 3 piores em destaque.</p>
           <div class="chart-vbars">
             {% for b in chart_velocidade %}
-            <div class="bar-col{% if b.pior %} pior{% endif %}" title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
+            <div class="bar-col{% if b.pior %} pior{% endif %}"
+              title="{{ b.item.empreendimento.nome }}: {{ b.item.velocidade|floatformat:1 }}%">
               <div class="bar-fill-area">
-                <div class="bar" style="height: {{ b.altura_pct|floatformat:"2u" }}%;"></div>
+                <div class="bar" style="height: {{ b.altura_pct|floatformat:" 2u" }}%;"></div>
               </div>
               <div class="bar-tick"></div>
               <div class="bar-label"><span>{{ b.item.empreendimento.nome|truncatechars:18 }}</span></div>
@@ -57,15 +60,17 @@
         </div>
 
         <div class="panel">
-          <h2>2. Risco de estouro de custo</h2>
+          <h2>Risco de estouro de custo</h2>
           <p class="premissa">Magnitude do estouro (custo realizado − orçado) acumulado, só empreendimentos
-          com estouro. Ordem decrescente de cima para baixo; destaque para os acima da média
-          (R$ {{ media_risco|floatformat:0 }}).</p>
+            com estouro. Ordem decrescente de cima para baixo; destaque para os acima da média
+            (R$ {{ media_risco|floatformat:0 }}).</p>
           <div class="chart-hbars">
             {% for b in chart_risco %}
             <div class="bar-row{% if b.acima_da_media %} acima{% endif %}">
               <div class="label" title="{{ b.item.empreendimento.nome }}">{{ b.item.empreendimento.nome }}</div>
-              <div class="bar-track"><div class="bar-fill" style="width: {{ b.largura_pct|floatformat:"2u" }}%;"></div></div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ b.largura_pct|floatformat:" 2u" }}%;"></div>
+              </div>
               <div class="value">R$ {{ b.item.magnitude|floatformat:0 }}</div>
             </div>
             {% endfor %}
@@ -79,7 +84,92 @@
     </div>
   </section>
 
-  <section class="carousel-slide" data-title="VENDAS" hidden>
+  <section class="carousel-slide" data-title="CLIENTES" data-info="info-clientes" hidden>
+    <div class="dash-top">
+
+      <div class="panel map-panel">
+        <h2>Mapa de clientes por estado</h2>
+        <div class="map-stats">
+          <span class="map-stat"><i></i>{{ total_clientes_unicos }} clientes</span>
+        </div>
+        <p class="premissa">Quantidade de clientes por UF. Mapa coroplético: quanto mais escuro (marrom), maior
+          a quantidade de clientes; branco = menor quantidade (inclusive nenhuma). Clique num estado para ver o
+          detalhamento por cidade e por perfil.</p>
+        <div class="map-svg-wrap">
+          <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
+            {% for r in regioes_clientes %}
+            <path class="map-uf" data-tooltip-id="cli-tt-{{ r.uf }}" d="{{ r.path_d }}" fill="{{ r.cor }}" tabindex="0">
+              <title>{{ r.nome }}</title>
+            </path>
+            {% endfor %}
+          </svg>
+          <div class="map-tooltip" id="clientesMapTooltip"></div>
+        </div>
+        <div class="mapa-legenda-cor">
+          <span>0</span>
+          <div class="mapa-legenda-gradiente"></div>
+          <span>{{ clientes_max_uf }} clientes</span>
+        </div>
+        <p class="premissa">A quantidade de clientes considera e-mail distinto, para evitar contar duas vezes um
+          cadastro duplicado.</p>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>Frequência de compra por cliente</h2>
+          <p class="premissa">Quantas vezes o mesmo cliente aparece em vendas (todo o histórico, inclusive vendas
+            com distrato). Só entram clientes com ao menos 1 compra.</p>
+          <div class="chart-vbars compacto">
+            {% for f in frequencia_compras %}
+            <div class="bar-col" title="{{ f.n_compras }}x: {{ f.n_clientes }} clientes">
+              <div class="bar-fill-area">
+                <div class="bar" style="height: {{ f.altura_pct|floatformat:" 2u" }}%;"></div>
+              </div>
+              <div class="bar-tick"></div>
+              <div class="bar-label"><span>{{ f.n_compras }}x</span></div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Ticket médio por perfil</h2>
+          <p class="premissa">Receita total dividida pelo número de clientes distintos que compraram, por
+            perfil de cliente.</p>
+          <div class="chart-hbars neutro">
+            {% for t in ticket_medio_perfil %}
+            <div class="bar-row">
+              <div class="label" title="{{ t.perfil }}">{{ t.perfil }}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ t.largura_pct|floatformat:" 2u" }}%;"></div>
+              </div>
+              <div class="value">R$ {{ t.ticket_medio|floatformat:0 }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Clientes por perfil</h2>
+          <p class="premissa">Quantidade de clientes cadastrados (e-mail distinto) por perfil, base toda --
+            inclui quem nunca comprou.</p>
+          <div class="chart-hbars neutro">
+            {% for p in contagem_clientes_perfil %}
+            <div class="bar-row">
+              <div class="label" title="{{ p.perfil }}">{{ p.perfil }}</div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ p.largura_pct|floatformat:" 2u" }}%;"></div>
+              </div>
+              <div class="value">{{ p.total }} cliente{{ p.total|pluralize }}</div>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="carousel-slide" data-title="VENDAS" data-info="info-vendas" hidden>
     <div class="vendas-filtro" id="vendasFiltro" hidden>
       Filtrando por <strong id="vendasFiltroNome"></strong>
       <button type="button" id="vendasFiltroLimpar">Limpar filtro ✕</button>
@@ -92,8 +182,8 @@
           <span class="map-stat"><i></i>{{ total_vendas_ativas }} vendas ativas</span>
         </div>
         <p class="premissa">Vendas com <code>data_distrato IS NULL</code>. Tamanho do marcador é proporcional
-        ao volume de vendas na cidade. Clique num marcador para fixar a dica de ferramenta e depois clique
-        num empreendimento para filtrar os gráficos ao lado.</p>
+          ao volume de vendas na cidade. Clique num marcador para fixar a dica de ferramenta e depois clique
+          num empreendimento para filtrar os gráficos ao lado.</p>
         <div class="map-svg-wrap">
           <svg viewBox="{{ mapa_viewbox }}" xmlns="http://www.w3.org/2000/svg">
             <path class="map-outline" d="{{ mapa_path_d }}"></path>
@@ -114,7 +204,7 @@
         <div class="panel">
           <h2>Vendas por período</h2>
           <p class="premissa">Contagem de vendas ativas por ano; clique numa barra para ver os meses daquele
-          ano.</p>
+            ano.</p>
           <div class="periodo-nav" id="periodoNav" hidden>
             <button type="button" id="periodoVoltar">← Anos</button>
             <span id="periodoAtual"></span>
@@ -125,50 +215,85 @@
         <div class="panel">
           <h2>Valor de vendas por forma de pagamento</h2>
           <p class="premissa">Soma de <code>valor_venda</code> por forma de pagamento; contagem de vendas
-          entre parênteses.</p>
+            entre parênteses.</p>
           <div class="chart-hbars neutro" id="pagamentoChart"></div>
         </div>
+
+        <div class="panel">
+          <h2>Vendas por tipo de unidade</h2>
+          <p class="premissa">Soma de <code>valor_venda</code> por tipo de unidade vendida; contagem de vendas
+            entre parênteses.</p>
+          <div class="chart-hbars neutro" id="tipoUnidadeChart"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="carousel-slide" data-title="FINANCEIRO" data-info="info-financeiro" hidden>
+    <div class="panel">
+      <h2>Financeiro: reportado vs. recalculado</h2>
+      <p class="premissa">resultado_recalculado = receita_reconhecida − custo_incorrido − despesas_corporativas_rat.
+        Uma linha de <code>financeiro_mensal</code> é "inconsistente" quando esse valor difere de
+        resultado_reportado em mais de R$ 0,01 (tolerância de arredondamento).</p>
+      <div class="grid-3">
+        <div class="stat">
+          <div class="value">{{ resumo_financeiro.total_inconsistentes }} de {{ resumo_financeiro.total_linhas }}</div>
+          <div class="label">linhas inconsistentes</div>
+        </div>
+        <div class="stat">
+          <div class="value">{{ resumo_financeiro.meses_inconsistentes }} de {{ resumo_financeiro.total_meses }}</div>
+          <div class="label">meses afetados</div>
+        </div>
+        <div class="stat">
+          <div class="value">{{ resumo_financeiro.empreendimentos_inconsistentes }} de {{ resumo_financeiro.total_empreendimentos }}</div>
+          <div class="label">empreendimentos afetados</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="panel">
+        <h2>Magnitude acumulada por empreendimento</h2>
+        <p class="premissa">Soma de |recalculado − reportado| nos meses inconsistentes, por empreendimento;
+          contagem de meses entre parênteses.</p>
+        <div class="chart-hbars alerta">
+          {% for i in inconsistencia_empreendimento %}
+          <div class="bar-row">
+            <div class="label" title="{{ i.empreendimento.nome }}">{{ i.empreendimento.nome }}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width: {{ i.largura_pct|floatformat:" 2u" }}%;"></div>
+            </div>
+            <div class="value">R$ {{ i.magnitude_acumulada|floatformat:0 }} ({{ i.n_meses }})</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Inconsistências por período</h2>
+        <p class="premissa">Contagem de linhas inconsistentes de <code>financeiro_mensal</code> por ano;
+          clique numa barra para ver os meses daquele ano.</p>
+        <div class="periodo-nav" id="finPeriodoNav" hidden>
+          <button type="button" id="finPeriodoVoltar">← Anos</button>
+          <span id="finPeriodoAtual"></span>
+        </div>
+        <div class="chart-vbars compacto" id="finPeriodoChart"></div>
       </div>
     </div>
   </section>
 </div>
 
-<hr class="divider">
-
-<div class="panel">
-  <h2>Perguntas</h2>
-
-  <div class="pergunta-bloco">
-    <h3>Há indícios de cadastros de clientes duplicados na base?</h3>
-    <p><strong>Não.</strong> A base não tem CPF/telefone, mas o e-mail já é uma chave própria e distinta
-    aqui: {{ duplicidade.total_clientes }} clientes cadastrados, {{ duplicidade.emails_distintos }}
-    e-mails distintos — mesmo depois de normalizar caixa e espaços, nenhum e-mail se repete. Isso descarta
-    duplicidade real de cadastro.</p>
-    <p>O que a base tem são {{ duplicidade.homonimos|length }} grupos de homônimos: pessoas diferentes que
-    compartilham o mesmo nome, geralmente distinguíveis pela cidade de cadastro. Se a análise fosse feita
-    ingenuamente por nome — tratando homônimos como se fossem a mesma pessoa — o número de "clientes
-    únicos" cairia artificialmente e o ticket médio por cliente subiria de forma equivocada, de
-    R$ {{ duplicidade.ticket_medio_correto|floatformat:0 }} para
-    R$ {{ duplicidade.ticket_medio_ingenuo_por_nome|floatformat:0 }} nesta base — distorcendo a métrica
-    justamente na direção oposta à que uma duplicidade real produziria.</p>
-  </div>
-
-  <div class="pergunta-bloco">
-    <h3>Existe inconsistência entre o resultado financeiro reportado e o recalculado?</h3>
-    <p>Sim: {{ total_inconsistencias }} das {{ total_financeiro }} linhas de
-    <code>financeiro_mensal</code> têm resultado reportado diferente de
-    receita_reconhecida − custo_incorrido − despesas_corporativas_rat, em alguns casos por mais de
-    R$ 2 milhões num único mês. Como hipótese a confirmar, a causa mais provável é lançamento de custo ou
-    despesa em competência diferente da do relatório já publicado (ajuste retroativo não refletido no
-    número reportado), ou uma rubrica que entra no cálculo de resultado mas não está representada nas
-    colunas desta tabela.</p>
-    <p>Esta resposta ainda está sob investigação e será revisada.</p>
+<div class="info-modal-overlay" id="infoOverlay" hidden>
+  <div class="info-modal" role="dialog" aria-modal="true" aria-labelledby="infoModalTitle">
+    <button type="button" class="info-modal-close" id="infoClose" aria-label="Fechar">✕</button>
+    <div id="infoModalBody"></div>
   </div>
 </div>
 
 <a href="{% url 'assistente' %}" class="ia-float">IA</a>
 
 {{ vendas_payload|json_script:"vendas-data" }}
+{{ inconsistencia_periodo|json_script:"financeiro-data" }}
 
 <div hidden>
   {% for m in marcadores %}
@@ -177,7 +302,8 @@
     {% for e in m.empreendimentos %}
     <div class="map-tooltip-item">
       <span class="map-tooltip-name">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></span>
-      <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }} dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
+      <span class="map-tooltip-units">{{ e.unidades_disponiveis }} unidade{{ e.unidades_disponiveis|pluralize }}
+        dispon{{ e.unidades_disponiveis|pluralize:"ível,íveis" }}</span>
     </div>
     {% endfor %}
   </div>
@@ -188,260 +314,510 @@
     <div class="map-tooltip-city">{{ m.cidade }}/{{ m.uf }}</div>
     {% for e in m.empreendimentos %}
     <div class="map-tooltip-item">
-      <button type="button" class="map-tooltip-link" data-emp-id="{{ e.id }}">{{ e.nome }} <span class="map-tooltip-tipo">· {{ e.tipo }}</span></button>
+      <button type="button" class="map-tooltip-link" data-emp-id="{{ e.id }}">{{ e.nome }} <span
+          class="map-tooltip-tipo">· {{ e.tipo }}</span></button>
       <span class="map-tooltip-units">{{ e.vendas_ativas }} venda{{ e.vendas_ativas|pluralize }} · R$ {{ e.valor_total|floatformat:0 }}</span>
     </div>
     {% endfor %}
   </div>
   {% endfor %}
+
+  {% for r in regioes_clientes %}
+  <div id="cli-tt-{{ r.uf }}">
+    <div class="map-tooltip-city">{{ r.nome }} · {{ r.total }} cliente{{ r.total|pluralize }}</div>
+    {% for c in r.cidades %}
+    <div class="map-tooltip-item">
+      <span class="map-tooltip-name">{{ c.cidade }}</span>
+      <span class="map-tooltip-units">{{ c.total }} cliente{{ c.total|pluralize }}
+        {% for perfil, n in c.por_perfil.items %}· {{ perfil }}: {{ n }}{% if not forloop.last %} {% endif %}{% endfor %}
+      </span>
+    </div>
+    {% empty %}
+    <div class="map-tooltip-item">
+      <span class="map-tooltip-units">Nenhum cliente cadastrado nesta UF nesta base.</span>
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+
+  <div id="info-empreendimentos">
+    <h3>Sobre os dados: Empreendimentos</h3>
+    <p>Alimentada por <code>empreendimentos</code>, <code>unidades</code>, <code>vendas</code> e
+      <code>obra_andamento</code>.
+    </p>
+    <p><strong>Critério de "venda ativa":</strong> <code>data_distrato</code> é a fonte de verdade, nunca
+      <code>status_venda</code> sozinho. Achado de qualidade de dados: de {{ achados_vendas.vendas_com_distrato }}
+      vendas com <code>data_distrato</code> preenchida, {{ achados_vendas.status_desatualizado }} ainda tinham
+      <code>status_venda</code> = "ativa" — o sistema de origem falhou em atualizar esse campo no distrato. Por
+      isso uma venda só conta como ativa quando <code>LOWER(TRIM(status_venda))</code> começa com "ativa"
+      <strong>e</strong> <code>data_distrato IS NULL</code>: {{ achados_vendas.vendas_ativas }} de
+      {{ achados_vendas.total_vendas }} vendas cadastradas.
+    </p>
+    <p><strong>Velocidade de vendas</strong> = vendas ativas ÷ total de unidades ofertadas, por
+      empreendimento.</p>
+    <p><strong>Risco de estouro de custo</strong> = soma(custo_realizado_mes) − soma(custo_orcado_mes) em
+      <code>obra_andamento</code>, acumulado por empreendimento; só entram os que estouraram (resultado
+      positivo).
+    </p>
+  </div>
+
+  <div id="info-clientes">
+    <h3>Sobre os dados: Clientes</h3>
+    <p>Alimentada por <code>clientes</code> (perfil, cidade, uf, e-mail) e <code>vendas</code>.</p>
+    <p><strong>Critério de contagem:</strong> cada cliente é identificado pelo e-mail normalizado
+      (minúsculo, sem espaços/acentos) — evita contar duas vezes o mesmo cadastro caso ele se repita na
+      base.</p>
+    <p><strong>Há indícios de cadastros duplicados?</strong> Não. A base tem
+      {{ duplicidade.total_clientes }} clientes cadastrados e {{ duplicidade.emails_distintos }} e-mails
+      distintos — mesmo número, mesmo depois de normalizar caixa e espaços. Isso descarta duplicidade real de
+      cadastro.</p>
+    <p>O que existe são {{ duplicidade.homonimos|length }} grupos de <strong>homônimos</strong>: pessoas
+      diferentes que compartilham o mesmo nome, geralmente distinguíveis pela cidade de cadastro. Se a análise
+      fosse feita ingenuamente por nome — tratando homônimos como se fossem a mesma pessoa — o número de
+      "clientes únicos" cairia artificialmente e o ticket médio por cliente subiria de forma equivocada, de
+      R$ {{ duplicidade.ticket_medio_correto|floatformat:0 }} para
+      R$ {{ duplicidade.ticket_medio_ingenuo_por_nome|floatformat:0 }} nesta base — distorcendo a métrica
+      justamente na direção oposta à que uma duplicidade real produziria.</p>
+  </div>
+
+  <div id="info-vendas">
+    <h3>Sobre os dados: Vendas</h3>
+    <p>Alimentada só por <code>vendas</code>, filtrada por <code>data_distrato IS NULL</code>
+      ({{ achados_vendas.vendas_ativas }} de {{ achados_vendas.total_vendas }} linhas).</p>
+    <p><strong>Diferença em relação à aba Empreendimentos:</strong> aqui o critério é literal sobre a
+      coluna (só <code>data_distrato</code>); em Empreendimentos usamos a regra mais completa, que também
+      exige <code>status_venda</code> = "ativa" (ver o ícone daquela aba). Na prática as duas definições
+      coincidem nesta base: as {{ achados_vendas.status_desatualizado }} linhas com <code>status_venda</code>
+      desatualizado têm <code>data_distrato</code> preenchida, então nunca entram aqui de qualquer forma.</p>
+    <p>Os gráficos de período, forma de pagamento e tipo de unidade somam apenas essas vendas ativas; o
+      mapa e os dois primeiros gráficos se re-filtram ao clicar num empreendimento no mapa.</p>
+  </div>
+
+  <div id="info-financeiro">
+    <h3>Sobre os dados: Financeiro</h3>
+    <p>Alimentada só por <code>financeiro_mensal</code> ({{ resumo_financeiro.total_linhas }} linhas,
+      {{ resumo_financeiro.total_meses }} meses, {{ resumo_financeiro.total_empreendimentos }}
+      empreendimentos).</p>
+    <p><strong>Resultado recalculado</strong> = receita_reconhecida − custo_incorrido −
+      despesas_corporativas_rat. Uma linha é "inconsistente" quando esse valor difere de
+      resultado_reportado em mais de R$ 0,01 (tolerância de arredondamento).</p>
+    <p><strong>Achado:</strong> {{ resumo_financeiro.total_inconsistentes }} de
+      {{ resumo_financeiro.total_linhas }} linhas são inconsistentes, atingindo
+      {{ resumo_financeiro.meses_inconsistentes }} dos {{ resumo_financeiro.total_meses }} meses e
+      {{ resumo_financeiro.empreendimentos_inconsistentes }} dos
+      {{ resumo_financeiro.total_empreendimentos }} empreendimentos — uma diferença acumulada (em módulo) de
+      R$ {{ resumo_financeiro.magnitude_acumulada_abs|floatformat:0 }}.</p>
+    <p>Hipótese mais provável (a confirmar): lançamento de custo ou despesa em competência diferente da do
+      relatório já publicado (ajuste retroativo não refletido no número reportado), ou uma rubrica que entra
+      no cálculo de resultado mas não está representada nas colunas desta tabela.</p>
+  </div>
 </div>
 
 <script>
-(function () {
-  // --- Carrossel de seções (EMPREENDIMENTOS / VENDAS / ...) ---
-  const slides = Array.from(document.querySelectorAll('.carousel-slide'));
-  const title = document.getElementById('carouselTitle');
-  let idx = 0;
-  function showSlide(i) {
-    idx = ((i % slides.length) + slides.length) % slides.length;
-    slides.forEach((s, j) => { s.hidden = j !== idx; });
-    title.textContent = slides[idx].dataset.title;
-  }
-  document.querySelectorAll('.carousel-arrow').forEach(btn => {
-    btn.addEventListener('click', () => showSlide(idx + parseInt(btn.dataset.dir, 10)));
-  });
-  showSlide(0);
-})();
-
-(function () {
-  // --- Tooltip do mapa de Empreendimentos (hover simples, sem fixar) ---
-  const wrap = document.querySelector('.map-panel .map-svg-wrap');
-  const tooltip = document.getElementById('mapTooltip');
-  if (!wrap || !tooltip) return;
-
-  function place(evt) {
-    const rect = wrap.getBoundingClientRect();
-    let left = evt.clientX - rect.left + 16;
-    let top = evt.clientY - rect.top + 16;
-    const maxLeft = rect.width - tooltip.offsetWidth - 8;
-    const maxTop = rect.height - tooltip.offsetHeight - 8;
-    tooltip.style.left = Math.max(8, Math.min(left, maxLeft)) + 'px';
-    tooltip.style.top = Math.max(8, Math.min(top, maxTop)) + 'px';
-  }
-
-  document.querySelectorAll('.map-panel .map-marker').forEach(marker => {
-    const content = document.getElementById(marker.dataset.tooltipId);
-    if (!content) return;
-    marker.addEventListener('mouseenter', evt => {
-      tooltip.innerHTML = content.innerHTML;
-      tooltip.classList.add('visible');
-      place(evt);
+  (function () {
+    // --- Carrossel de seções (EMPREENDIMENTOS / VENDAS / ...) ---
+    const slides = Array.from(document.querySelectorAll('.carousel-slide'));
+    const title = document.getElementById('carouselTitle');
+    let idx = 0;
+    function showSlide(i) {
+      idx = ((i % slides.length) + slides.length) % slides.length;
+      slides.forEach((s, j) => { s.hidden = j !== idx; });
+      title.textContent = slides[idx].dataset.title;
+      document.getElementById('infoOverlay')?.setAttribute('hidden', '');
+    }
+    document.querySelectorAll('.carousel-arrow').forEach(btn => {
+      btn.addEventListener('click', () => showSlide(idx + parseInt(btn.dataset.dir, 10)));
     });
-    marker.addEventListener('mousemove', place);
-    marker.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
-    marker.addEventListener('focus', evt => {
-      tooltip.innerHTML = content.innerHTML;
-      tooltip.classList.add('visible');
-      const box = marker.getBoundingClientRect();
+    showSlide(0);
+  })();
+
+  (function () {
+    // --- Ícone "i" do carrossel: diagnóstico dos dados da seção ativa ---
+    const btn = document.getElementById('infoBtn');
+    const overlay = document.getElementById('infoOverlay');
+    const closeBtn = document.getElementById('infoClose');
+    const body = document.getElementById('infoModalBody');
+    if (!btn || !overlay || !closeBtn || !body) return;
+
+    function openModal() {
+      const slide = Array.from(document.querySelectorAll('.carousel-slide')).find(s => !s.hidden);
+      const infoId = slide?.dataset.info;
+      const content = infoId && document.getElementById(infoId);
+      if (!content) return;
+      body.innerHTML = content.innerHTML;
+      body.querySelector('h3')?.setAttribute('id', 'infoModalTitle');
+      overlay.hidden = false;
+    }
+    function closeModal() { overlay.hidden = true; }
+
+    btn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', evt => { if (evt.target === overlay) closeModal(); });
+    document.addEventListener('keydown', evt => { if (evt.key === 'Escape') closeModal(); });
+  })();
+
+  (function () {
+    // --- Tooltip do mapa de Empreendimentos (hover simples, sem fixar) ---
+    const wrap = document.querySelector('.map-panel .map-svg-wrap');
+    const tooltip = document.getElementById('mapTooltip');
+    if (!wrap || !tooltip) return;
+
+    function place(evt) {
       const rect = wrap.getBoundingClientRect();
-      tooltip.style.left = (box.left - rect.left + 16) + 'px';
-      tooltip.style.top = (box.top - rect.top + 16) + 'px';
-    });
-    marker.addEventListener('blur', () => tooltip.classList.remove('visible'));
-  });
-})();
-
-(function () {
-  // --- Seção Vendas: mapa com tooltip fixável por clique + filtro dos gráficos ---
-  const dataEl = document.getElementById('vendas-data');
-  if (!dataEl) return;
-  const data = JSON.parse(dataEl.textContent);
-
-  const MESES = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
-  const MESES_NOME = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-
-  const state = { empId: null, ano: null };
-
-  const periodoChart = document.getElementById('periodoChart');
-  const periodoNav = document.getElementById('periodoNav');
-  const periodoAtual = document.getElementById('periodoAtual');
-  const periodoVoltar = document.getElementById('periodoVoltar');
-  const pagamentoChart = document.getElementById('pagamentoChart');
-  const filtroBar = document.getElementById('vendasFiltro');
-  const filtroNome = document.getElementById('vendasFiltroNome');
-  const filtroLimpar = document.getElementById('vendasFiltroLimpar');
-
-  function bucketAtual() {
-    return state.empId ? data.por_empreendimento[state.empId] : data.geral;
-  }
-
-  function renderPeriodo() {
-    const bucket = bucketAtual();
-    periodoChart.innerHTML = '';
-    if (!bucket) return;
-
-    if (!state.ano) {
-      periodoNav.hidden = true;
-      const anos = Object.keys(bucket.por_ano).sort();
-      const maior = Math.max(1, ...anos.map(a => bucket.por_ano[a].total));
-      anos.forEach(ano => {
-        const total = bucket.por_ano[ano].total;
-        periodoChart.appendChild(buildBar(String(total), ano, (total / maior) * 100, () => {
-          state.ano = ano;
-          renderPeriodo();
-        }));
-      });
-    } else {
-      periodoNav.hidden = false;
-      periodoAtual.textContent = state.ano;
-      const anoBucket = bucket.por_ano[state.ano];
-      const meses = anoBucket ? anoBucket.meses : {};
-      const maior = Math.max(1, ...MESES.map(m => meses[m] || 0));
-      MESES.forEach((m, i) => {
-        const total = meses[m] || 0;
-        periodoChart.appendChild(buildBar(String(total), MESES_NOME[i], (total / maior) * 100, null));
-      });
+      let left = evt.clientX - rect.left + 16;
+      let top = evt.clientY - rect.top + 16;
+      const maxLeft = rect.width - tooltip.offsetWidth - 8;
+      const maxTop = rect.height - tooltip.offsetHeight - 8;
+      tooltip.style.left = Math.max(8, Math.min(left, maxLeft)) + 'px';
+      tooltip.style.top = Math.max(8, Math.min(top, maxTop)) + 'px';
     }
-  }
 
-  function buildBar(valueTitle, label, pct, onClick) {
-    const col = document.createElement('div');
-    col.className = 'bar-col';
-    col.title = label + ': ' + valueTitle;
-    const fillArea = document.createElement('div');
-    fillArea.className = 'bar-fill-area';
-    const bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.style.height = Math.max(pct, 1.5) + '%';
-    fillArea.appendChild(bar);
-    const tick = document.createElement('div');
-    tick.className = 'bar-tick';
-    const labelEl = document.createElement('div');
-    labelEl.className = 'bar-label';
-    const span = document.createElement('span');
-    span.textContent = label;
-    labelEl.appendChild(span);
-    col.appendChild(fillArea);
-    col.appendChild(tick);
-    col.appendChild(labelEl);
-    if (onClick) {
-      col.style.cursor = 'pointer';
-      col.addEventListener('click', onClick);
-    }
-    return col;
-  }
-
-  function renderPagamento() {
-    const bucket = bucketAtual();
-    pagamentoChart.innerHTML = '';
-    if (!bucket) return;
-    const entradas = Object.entries(bucket.por_pagamento);
-    const maiorValor = Math.max(1, ...entradas.map(([, v]) => v.valor));
-    entradas.sort((a, b) => b[1].valor - a[1].valor);
-    entradas.forEach(([forma, v]) => {
-      const row = document.createElement('div');
-      row.className = 'bar-row';
-      const label = document.createElement('div');
-      label.className = 'label';
-      label.title = forma;
-      label.textContent = forma;
-      const track = document.createElement('div');
-      track.className = 'bar-track';
-      const fill = document.createElement('div');
-      fill.className = 'bar-fill';
-      fill.style.width = Math.max((v.valor / maiorValor) * 100, 1.5) + '%';
-      track.appendChild(fill);
-      const value = document.createElement('div');
-      value.className = 'value';
-      value.textContent = 'R$ ' + Math.round(v.valor).toLocaleString('pt-BR') + ' (' + v.count + ')';
-      row.appendChild(label);
-      row.appendChild(track);
-      row.appendChild(value);
-      pagamentoChart.appendChild(row);
-    });
-  }
-
-  function renderTudo() {
-    renderPeriodo();
-    renderPagamento();
-  }
-
-  periodoVoltar.addEventListener('click', () => {
-    state.ano = null;
-    renderPeriodo();
-  });
-
-  function setFiltro(empId) {
-    state.empId = empId;
-    state.ano = null;
-    if (empId && data.empreendimentos[empId]) {
-      filtroBar.hidden = false;
-      filtroNome.textContent = data.empreendimentos[empId].nome;
-    } else {
-      filtroBar.hidden = true;
-      filtroNome.textContent = '';
-    }
-    renderTudo();
-  }
-
-  filtroLimpar.addEventListener('click', () => setFiltro(null));
-
-  // Mapa de vendas: clique fixa a tooltip; clique num empreendimento filtra os gráficos.
-  const wrap = document.querySelector('.vendas-marker')?.closest('.map-svg-wrap');
-  const tooltip = document.getElementById('vendasMapTooltip');
-  let pinnedMarker = null;
-
-  function place(x, y) {
-    const rect = wrap.getBoundingClientRect();
-    const left = Math.max(8, Math.min(x - rect.left + 16, rect.width - tooltip.offsetWidth - 8));
-    const top = Math.max(8, Math.min(y - rect.top + 16, rect.height - tooltip.offsetHeight - 8));
-    tooltip.style.left = left + 'px';
-    tooltip.style.top = top + 'px';
-  }
-
-  function showTooltipFor(marker, x, y) {
-    const content = document.getElementById(marker.dataset.tooltipId);
-    if (!content) return;
-    tooltip.innerHTML = content.innerHTML;
-    tooltip.classList.add('visible');
-    place(x, y);
-    tooltip.querySelectorAll('.map-tooltip-link').forEach(btn => {
-      btn.addEventListener('click', () => setFiltro(btn.dataset.empId));
-    });
-  }
-
-  if (wrap) {
-    document.querySelectorAll('.vendas-marker').forEach(marker => {
+    document.querySelectorAll('.map-panel .map-marker').forEach(marker => {
+      const content = document.getElementById(marker.dataset.tooltipId);
+      if (!content) return;
       marker.addEventListener('mouseenter', evt => {
-        if (!pinnedMarker) showTooltipFor(marker, evt.clientX, evt.clientY);
+        tooltip.innerHTML = content.innerHTML;
+        tooltip.classList.add('visible');
+        place(evt);
       });
-      marker.addEventListener('mousemove', evt => {
-        if (!pinnedMarker) place(evt.clientX, evt.clientY);
+      marker.addEventListener('mousemove', place);
+      marker.addEventListener('mouseleave', () => tooltip.classList.remove('visible'));
+      marker.addEventListener('focus', evt => {
+        tooltip.innerHTML = content.innerHTML;
+        tooltip.classList.add('visible');
+        const box = marker.getBoundingClientRect();
+        const rect = wrap.getBoundingClientRect();
+        tooltip.style.left = (box.left - rect.left + 16) + 'px';
+        tooltip.style.top = (box.top - rect.top + 16) + 'px';
       });
-      marker.addEventListener('mouseleave', () => {
-        if (!pinnedMarker) tooltip.classList.remove('visible');
+      marker.addEventListener('blur', () => tooltip.classList.remove('visible'));
+    });
+  })();
+
+  (function () {
+    // --- Seção Vendas: mapa com tooltip fixável por clique + filtro dos gráficos ---
+    const dataEl = document.getElementById('vendas-data');
+    if (!dataEl) return;
+    const data = JSON.parse(dataEl.textContent);
+
+    const MESES = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    const MESES_NOME = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+    const state = { empId: null, ano: null };
+
+    const periodoChart = document.getElementById('periodoChart');
+    const periodoNav = document.getElementById('periodoNav');
+    const periodoAtual = document.getElementById('periodoAtual');
+    const periodoVoltar = document.getElementById('periodoVoltar');
+    const pagamentoChart = document.getElementById('pagamentoChart');
+    const tipoUnidadeChart = document.getElementById('tipoUnidadeChart');
+    const filtroBar = document.getElementById('vendasFiltro');
+    const filtroNome = document.getElementById('vendasFiltroNome');
+    const filtroLimpar = document.getElementById('vendasFiltroLimpar');
+
+    function bucketAtual() {
+      return state.empId ? data.por_empreendimento[state.empId] : data.geral;
+    }
+
+    function renderPeriodo() {
+      const bucket = bucketAtual();
+      periodoChart.innerHTML = '';
+      if (!bucket) return;
+
+      if (!state.ano) {
+        periodoNav.hidden = true;
+        const anos = Object.keys(bucket.por_ano).sort();
+        const maior = Math.max(1, ...anos.map(a => bucket.por_ano[a].total));
+        anos.forEach(ano => {
+          const total = bucket.por_ano[ano].total;
+          periodoChart.appendChild(buildBar(String(total), ano, (total / maior) * 100, () => {
+            state.ano = ano;
+            renderPeriodo();
+          }));
+        });
+      } else {
+        periodoNav.hidden = false;
+        periodoAtual.textContent = state.ano;
+        const anoBucket = bucket.por_ano[state.ano];
+        const meses = anoBucket ? anoBucket.meses : {};
+        const maior = Math.max(1, ...MESES.map(m => meses[m] || 0));
+        MESES.forEach((m, i) => {
+          const total = meses[m] || 0;
+          periodoChart.appendChild(buildBar(String(total), MESES_NOME[i], (total / maior) * 100, null));
+        });
+      }
+    }
+
+    function buildBar(valueTitle, label, pct, onClick) {
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.title = label + ': ' + valueTitle;
+      const fillArea = document.createElement('div');
+      fillArea.className = 'bar-fill-area';
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = Math.max(pct, 1.5) + '%';
+      fillArea.appendChild(bar);
+      const tick = document.createElement('div');
+      tick.className = 'bar-tick';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'bar-label';
+      const span = document.createElement('span');
+      span.textContent = label;
+      labelEl.appendChild(span);
+      col.appendChild(fillArea);
+      col.appendChild(tick);
+      col.appendChild(labelEl);
+      if (onClick) {
+        col.style.cursor = 'pointer';
+        col.addEventListener('click', onClick);
+      }
+      return col;
+    }
+
+    function renderBarrasValor(container, porChave) {
+      container.innerHTML = '';
+      const entradas = Object.entries(porChave);
+      const maiorValor = Math.max(1, ...entradas.map(([, v]) => v.valor));
+      entradas.sort((a, b) => b[1].valor - a[1].valor);
+      entradas.forEach(([chave, v]) => {
+        const row = document.createElement('div');
+        row.className = 'bar-row';
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.title = chave;
+        label.textContent = chave;
+        const track = document.createElement('div');
+        track.className = 'bar-track';
+        const fill = document.createElement('div');
+        fill.className = 'bar-fill';
+        fill.style.width = Math.max((v.valor / maiorValor) * 100, 1.5) + '%';
+        track.appendChild(fill);
+        const value = document.createElement('div');
+        value.className = 'value';
+        value.textContent = 'R$ ' + Math.round(v.valor).toLocaleString('pt-BR') + ' (' + v.count + ')';
+        row.appendChild(label);
+        row.appendChild(track);
+        row.appendChild(value);
+        container.appendChild(row);
       });
-      marker.addEventListener('click', evt => {
-        evt.stopPropagation();
-        if (pinnedMarker === marker) {
+    }
+
+    function renderPagamento() {
+      const bucket = bucketAtual();
+      if (!bucket) return;
+      renderBarrasValor(pagamentoChart, bucket.por_pagamento);
+    }
+
+    function renderTipoUnidade() {
+      const bucket = bucketAtual();
+      if (!bucket) return;
+      renderBarrasValor(tipoUnidadeChart, bucket.por_tipo_unidade);
+    }
+
+    function renderTudo() {
+      renderPeriodo();
+      renderPagamento();
+      renderTipoUnidade();
+    }
+
+    periodoVoltar.addEventListener('click', () => {
+      state.ano = null;
+      renderPeriodo();
+    });
+
+    function setFiltro(empId) {
+      state.empId = empId;
+      state.ano = null;
+      if (empId && data.empreendimentos[empId]) {
+        filtroBar.hidden = false;
+        filtroNome.textContent = data.empreendimentos[empId].nome;
+      } else {
+        filtroBar.hidden = true;
+        filtroNome.textContent = '';
+      }
+      renderTudo();
+    }
+
+    filtroLimpar.addEventListener('click', () => setFiltro(null));
+
+    // Mapa de vendas: clique fixa a tooltip; clique num empreendimento filtra os gráficos.
+    const wrap = document.querySelector('.vendas-marker')?.closest('.map-svg-wrap');
+    const tooltip = document.getElementById('vendasMapTooltip');
+    let pinnedMarker = null;
+
+    function place(x, y) {
+      const rect = wrap.getBoundingClientRect();
+      const left = Math.max(8, Math.min(x - rect.left + 16, rect.width - tooltip.offsetWidth - 8));
+      const top = Math.max(8, Math.min(y - rect.top + 16, rect.height - tooltip.offsetHeight - 8));
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+
+    function showTooltipFor(marker, x, y) {
+      const content = document.getElementById(marker.dataset.tooltipId);
+      if (!content) return;
+      tooltip.innerHTML = content.innerHTML;
+      tooltip.classList.add('visible');
+      place(x, y);
+      tooltip.querySelectorAll('.map-tooltip-link').forEach(btn => {
+        btn.addEventListener('click', () => setFiltro(btn.dataset.empId));
+      });
+    }
+
+    if (wrap) {
+      document.querySelectorAll('.vendas-marker').forEach(marker => {
+        marker.addEventListener('mouseenter', evt => {
+          if (!pinnedMarker) showTooltipFor(marker, evt.clientX, evt.clientY);
+        });
+        marker.addEventListener('mousemove', evt => {
+          if (!pinnedMarker) place(evt.clientX, evt.clientY);
+        });
+        marker.addEventListener('mouseleave', () => {
+          if (!pinnedMarker) tooltip.classList.remove('visible');
+        });
+        marker.addEventListener('click', evt => {
+          evt.stopPropagation();
+          if (pinnedMarker === marker) {
+            pinnedMarker = null;
+            tooltip.classList.remove('visible');
+          } else {
+            pinnedMarker = marker;
+            showTooltipFor(marker, evt.clientX, evt.clientY);
+          }
+        });
+      });
+      document.addEventListener('click', evt => {
+        if (pinnedMarker && !tooltip.contains(evt.target)) {
           pinnedMarker = null;
           tooltip.classList.remove('visible');
-        } else {
-          pinnedMarker = marker;
-          showTooltipFor(marker, evt.clientX, evt.clientY);
         }
       });
+      tooltip.addEventListener('click', evt => evt.stopPropagation());
+    }
+
+    renderTudo();
+  })();
+
+  (function () {
+    // --- Seção Financeiro: gráfico de inconsistências ano -> mês (mesmo padrão de
+    // drill-down do "Vendas por período", mas sem filtro por empreendimento) ---
+    const dataEl = document.getElementById('financeiro-data');
+    if (!dataEl) return;
+    const dados = JSON.parse(dataEl.textContent);
+
+    const MESES = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
+    const MESES_NOME = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+    const chart = document.getElementById('finPeriodoChart');
+    const nav = document.getElementById('finPeriodoNav');
+    const atual = document.getElementById('finPeriodoAtual');
+    const voltar = document.getElementById('finPeriodoVoltar');
+    if (!chart || !nav || !atual || !voltar) return;
+
+    let ano = null;
+
+    function buildBar(valueTitle, label, pct, onClick) {
+      const col = document.createElement('div');
+      col.className = 'bar-col';
+      col.title = label + ': ' + valueTitle;
+      const fillArea = document.createElement('div');
+      fillArea.className = 'bar-fill-area';
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      bar.style.height = Math.max(pct, 1.5) + '%';
+      fillArea.appendChild(bar);
+      const tick = document.createElement('div');
+      tick.className = 'bar-tick';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'bar-label';
+      const span = document.createElement('span');
+      span.textContent = label;
+      labelEl.appendChild(span);
+      col.appendChild(fillArea);
+      col.appendChild(tick);
+      col.appendChild(labelEl);
+      if (onClick) {
+        col.style.cursor = 'pointer';
+        col.addEventListener('click', onClick);
+      }
+      return col;
+    }
+
+    function render() {
+      chart.innerHTML = '';
+      if (!ano) {
+        nav.hidden = true;
+        const anos = Object.keys(dados).sort();
+        const maior = Math.max(1, ...anos.map(a => dados[a].total));
+        anos.forEach(a => {
+          const total = dados[a].total;
+          chart.appendChild(buildBar(String(total), a, (total / maior) * 100, () => {
+            ano = a;
+            render();
+          }));
+        });
+      } else {
+        nav.hidden = false;
+        atual.textContent = ano;
+        const anoBucket = dados[ano];
+        const meses = anoBucket ? anoBucket.meses : {};
+        const maior = Math.max(1, ...MESES.map(m => meses[m] || 0));
+        MESES.forEach((m, i) => {
+          const total = meses[m] || 0;
+          chart.appendChild(buildBar(String(total), MESES_NOME[i], (total / maior) * 100, null));
+        });
+      }
+    }
+
+    voltar.addEventListener('click', () => {
+      ano = null;
+      render();
     });
+
+    render();
+  })();
+
+  (function () {
+    // --- Seção Clientes: mapa coroplético com tooltip fixável por clique ---
+    const wrap = document.querySelector('#clientesMapTooltip')?.closest('.map-svg-wrap');
+    const tooltip = document.getElementById('clientesMapTooltip');
+    if (!wrap || !tooltip) return;
+
+    let pinned = null;
+
+    function place(x, y) {
+      const rect = wrap.getBoundingClientRect();
+      const left = Math.max(8, Math.min(x - rect.left + 16, rect.width - tooltip.offsetWidth - 8));
+      const top = Math.max(8, Math.min(y - rect.top + 16, rect.height - tooltip.offsetHeight - 8));
+      tooltip.style.left = left + 'px';
+      tooltip.style.top = top + 'px';
+    }
+
+    wrap.querySelectorAll('.map-uf').forEach(uf => {
+      uf.addEventListener('click', evt => {
+        evt.stopPropagation();
+        const content = document.getElementById(uf.dataset.tooltipId);
+        if (!content) return;
+        if (pinned === uf) {
+          pinned = null;
+          tooltip.classList.remove('visible');
+          return;
+        }
+        pinned = uf;
+        tooltip.innerHTML = content.innerHTML;
+        tooltip.classList.add('visible');
+        place(evt.clientX, evt.clientY);
+      });
+    });
+
     document.addEventListener('click', evt => {
-      if (pinnedMarker && !tooltip.contains(evt.target)) {
-        pinnedMarker = null;
+      if (pinned && !tooltip.contains(evt.target)) {
+        pinned = null;
         tooltip.classList.remove('visible');
       }
     });
     tooltip.addEventListener('click', evt => evt.stopPropagation());
-  }
-
-  renderTudo();
-})();
+  })();
 </script>
 {% endblock %}
