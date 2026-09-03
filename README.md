@@ -1,4 +1,4 @@
-# Cambará Empreendimentos — Teste Técnico (Analista de Soluções de Negócio)
+# Cambará Empreendimentos — (Analista de Soluções de Negócio)
 
 Aplicação Django que lê e escreve diretamente na base SQLite com autenticação simples,
 dashboards de negócio, um fluxo de venda/distrato com regra de negócio aplicada no
