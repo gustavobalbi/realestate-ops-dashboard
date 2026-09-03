@@ -18,6 +18,7 @@
     min-height: 100vh;
     background: url("{% static 'img/predio.jpg' %}") center / cover no-repeat;
   }
+
   .auth-visual::after {
     content: "";
     position: absolute;
@@ -26,6 +27,7 @@
       linear-gradient(180deg, rgba(61, 35, 15, 0.15) 0%, rgba(61, 35, 15, 0.55) 60%, rgba(61, 35, 15, 0.92) 100%),
       linear-gradient(90deg, rgba(61, 35, 15, 0.35) 0%, rgba(61, 35, 15, 0) 35%, rgba(61, 35, 15, 0) 100%);
   }
+
   .auth-visual-mark {
     position: absolute;
     left: 48px;
@@ -35,7 +37,13 @@
     align-items: center;
     gap: 14px;
   }
-  .auth-visual-mark img { width: 40px; height: auto; display: block; }
+
+  .auth-visual-mark img {
+    width: 40px;
+    height: auto;
+    display: block;
+  }
+
   .auth-visual-mark span {
     color: var(--brand-secondary);
     font-family: var(--font-body);
@@ -60,7 +68,13 @@
     max-width: 380px;
   }
 
-  .auth-logo { display: block; width: 220px; max-width: 70%; height: auto; margin: 0 auto 40px; }
+  .auth-logo {
+    display: block;
+    width: 220px;
+    max-width: 70%;
+    height: auto;
+    margin: 0 auto 40px;
+  }
 
   .auth-heading {
     font-family: var(--font-display);
@@ -70,6 +84,7 @@
     text-align: center;
     margin: 0 0 8px;
   }
+
   .auth-subheading {
     font-family: var(--font-body);
     font-size: 14px;
@@ -78,6 +93,7 @@
     margin: 0 0 32px;
     line-height: 1.5;
   }
+
   .auth-subheading code {
     background: rgba(61, 35, 15, 0.08);
     padding: 1px 6px;
@@ -85,7 +101,12 @@
     font-size: 12.5px;
   }
 
-  .auth-messages { list-style: none; padding: 0; margin: 0 0 20px; }
+  .auth-messages {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 20px;
+  }
+
   .auth-messages li {
     font-family: var(--font-body);
     font-size: 13.5px;
@@ -93,10 +114,23 @@
     border-radius: 8px;
     margin-bottom: 8px;
   }
-  .auth-messages li.error { background: #fbe9e7; color: #8a3324; border: 1px solid #e3b6ab; }
-  .auth-messages li.success { background: #eaf3ea; color: #2f5233; border: 1px solid #b9d6ba; }
 
-  .auth-field { margin-bottom: 18px; }
+  .auth-messages li.error {
+    background: #fbe9e7;
+    color: #8a3324;
+    border: 1px solid #e3b6ab;
+  }
+
+  .auth-messages li.success {
+    background: #eaf3ea;
+    color: #2f5233;
+    border: 1px solid #b9d6ba;
+  }
+
+  .auth-field {
+    margin-bottom: 18px;
+  }
+
   .auth-field label {
     display: block;
     font-family: var(--font-body);
@@ -107,6 +141,7 @@
     color: var(--brand-primary);
     margin-bottom: 7px;
   }
+
   .auth-field input[type="email"],
   .auth-field input[type="password"],
   .auth-field input[type="text"] {
@@ -121,6 +156,7 @@
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
   }
+
   .auth-field input[type="email"]:focus,
   .auth-field input[type="password"]:focus,
   .auth-field input[type="text"]:focus {
@@ -143,13 +179,30 @@
     cursor: pointer;
     transition: filter 0.15s ease;
   }
-  .auth-submit:hover { filter: brightness(1.12); }
+
+  .auth-submit:hover {
+    filter: brightness(1.12);
+  }
 
   @media (max-width: 860px) {
-    .auth-shell { flex-direction: column; }
-    .auth-visual { flex: none; min-height: 42vh; }
-    .auth-form-side { min-height: auto; padding: 40px 24px 64px; }
-    .auth-visual-mark { left: 24px; bottom: 24px; }
+    .auth-shell {
+      flex-direction: column;
+    }
+
+    .auth-visual {
+      flex: none;
+      min-height: 42vh;
+    }
+
+    .auth-form-side {
+      min-height: auto;
+      padding: 40px 24px 64px;
+    }
+
+    .auth-visual-mark {
+      left: 24px;
+      bottom: 24px;
+    }
   }
 </style>
 {% endblock %}
@@ -166,10 +219,7 @@
   <div class="auth-form-side">
     <div class="auth-form-col">
       <img class="auth-logo" src="{% static 'img/logo-cambara.png' %}" alt="Cambará Empreendimentos">
-      <h1 class="auth-heading">Bem-vindo de volta</h1>
-      <p class="auth-subheading">Use um dos usuários seed da base (ex.: candidato@cambara-teste.com.br).
-      Senha: primeira palavra do nome do usuário + <code>123</code> (ex.: <code>Candidato123</code>).</p>
-
+      <h1 class="auth-heading">Bem-vindo de volta!</h1>
       {% if messages %}
       <ul class="auth-messages">
         {% for message in messages %}
