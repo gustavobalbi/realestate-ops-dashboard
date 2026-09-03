@@ -98,7 +98,7 @@ verificar) está no ícone **"i"** da seção correspondente no dashboard e nos 
 
 ### As 4 perguntas de negócio (premissas)
 
-1. **Velocidade de vendas** = vendas ativas (`venda_esta_ativa()`; vendas com DATA_DISTRATO nulo) / unidades cadastradas
+1. **Velocidade de vendas** = vendas ativas (`venda_esta_ativa()`; data_distrato nulo e status_venda = ativa) / unidades cadastradas
    no empreendimento.
 2. **Risco de estouro de custo** = `custo_realizado_mes − custo_orcado_mes` acumulado por
    empreendimento (`obra_andamento`).
