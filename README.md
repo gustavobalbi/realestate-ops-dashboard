@@ -56,140 +56,63 @@ negocio/           app único com toda a lógica de negócio
   services.py      camada de escrita: registrar_venda / registrar_distrato
   nl_assistant.py  assistente de linguagem natural (texto-para-SQL com Gemini)
   data_browser.py  dados agregados da página "Dados" (tabelas normalizadas, paginadas)
+  data_editor.py   edição de clientes/empreendimentos na página "Dados" (só essas duas)
   views.py / urls.py / forms.py
   templates/negocio/*.html
   templatetags/negocio_extras.py   filtro de template (nome + cidade/UF)
-static/img/        logo, monograma e foto de fachada da Cambará (gerados/tratados
-                    para este teste -- ver seção de identidade visual)
-data_cambara.sqlite3   cópia de trabalho da base fornecida (commitada de propósito,
-                        para o avaliador rodar sem precisar copiar o .db original)
-Dockerfile / entrypoint.sh / .dockerignore   imagem usada pelo deploy opcional no Render
-                                              (ver "Deploy" -- testados localmente)
-scripts/migrar_para_azure_sql.py   migração opcional SQLite -> Azure SQL Database, só
-                                    necessária se algum dia trocar o SQLite padrão por um
-                                    banco de verdade (ver "Deploy")
-.github/workflows/docker-build.yml   builda e publica a imagem no GitHub Container
-                                      Registry a cada push em master (não é usado pelo
-                                      Render, que builda o Dockerfile direto do repo;
-                                      mantido para quem preferir puxar uma imagem já
-                                      publicada em outro serviço)
-startup.sh         comando de inicialização alternativo para Azure App Service, de uma
-                    tentativa de deploy anterior (abandonada por limite de quota da conta
-                    Azure) -- não é usado pelo caminho de deploy atual, mantido só de
-                    referência
+static/img/        logo, monograma e foto de fachada (tratados para este teste)
+data_cambara.sqlite3   cópia de trabalho da base fornecida (commitada de propósito, pro
+                        avaliador rodar sem copiar o .db original)
+Dockerfile / entrypoint.sh / .dockerignore   imagem do deploy opcional no Render (ver
+                                              "Deploy")
+scripts/migrar_para_azure_sql.py   migração opcional SQLite -> Azure SQL, só necessária
+                                    se trocar o SQLite padrão por um banco de verdade
+.github/workflows/docker-build.yml   publica a imagem no GHCR a cada push (não usado
+                                      pelo Render, que builda o Dockerfile direto)
+startup.sh         comando de inicialização de uma tentativa anterior de deploy (Azure
+                    App Service, abandonada por quota) -- não usado hoje, só referência
 ```
 
 ## Decisões de modelagem e tratamento de dados
 
-A base tem inconsistências de grafia propositais (ex.: `unidades.status` aparece como
-`"vendida"`, `"Vendida"`, `"VENDIDA"`). Em vez de reescrever as linhas históricas, a regra
-foi: **nunca alterar dados históricos para "corrigir" grafia** — normalizar em Python na
-hora da leitura (`negocio/normalize.py`), e escrever sempre com grafia canônica a partir
-de agora (`negocio/services.py`). Isso evita perder rastro do que veio "sujo" da origem.
-Pela mesma razão, as colunas de texto (status, modelo_negocio etc.) permanecem como vieram
-na base — a comparação já é sempre case/accent-insensitive na leitura, então normalizar o
-dado bruto não mudaria nenhum resultado, só apagaria um achado de qualidade de dados que o
-teste pede para identificar.
+Regra geral: **nunca alterar dados históricos.** A base tem grafia inconsistente
+proposital (ex.: `unidades.status` como "vendida"/"Vendida"/"VENDIDA") — normalização
+acontece só na leitura (`negocio/normalize.py`); escritas novas (`negocio/services.py`)
+já saem com grafia canônica. O detalhe de cada achado abaixo (números, critério, como
+verificar) está no ícone **"i"** da seção correspondente no dashboard e nos comentários de
+`negocio/normalize.py` / `negocio/analytics.py` — aqui só a decisão tomada:
 
-As 6 colunas de data (`data_lancamento`, `data_venda`, `data_distrato`, `data_cadastro`,
-e os dois `mes_referencia`) são declaradas como `DateField` em `negocio/models.py` — o
-SQLite não impõe tipo de coluna, então isso não altera o schema real (a coluna continua
-`TEXT` fisicamente, como confirmado via `PRAGMA table_info`); é só o Django passando a
-devolver `datetime.date` em vez de string crua nessas colunas, o que deixa comparações e
-agrupamentos por ano/mês mais corretos (antes eram feitos via fatiamento de string, ex.
-`data_venda[:4]`).
+- **6 colunas de data → `DateField`** (`negocio/models.py`): não muda o schema real
+  (SQLite não impõe tipo), só troca string crua por `datetime.date` nas comparações.
+- **`unidades.status = "cancelado"` (40 linhas) fundido em `"distrato"`**
+  (`norm_status_unidade`): mesma coisa, grafias diferentes — 100% das 40 têm venda
+  vinculada com status "distrato". Não existe mais bucket "cancelado" separado; a tela
+  Dados já filtra as duas como uma só.
+- **Distrato sempre devolve a unidade pra "Disponível"** na escrita (`services.py`),
+  mesmo a base histórica não fazendo isso.
+- **`vendas.status_venda` divergente de `data_distrato`** nas duas direções: 37 linhas
+  dizem "ativa" com distrato já registrado, 9 dizem "distrato" sem data registrada.
+  `data_distrato` é sempre a fonte de verdade (`venda_esta_ativa()`); a tela Dados expõe
+  os dois casos lado a lado (coluna STATUS já corrigida, "SEM REGISTRO" na data).
+- **Nulos auditados nas 7 tabelas**: só existem em `observacoes` (2 tabelas, campo
+  opcional) e `vendas.data_distrato` (semântica esperada) — nenhuma FK órfã.
+- **`obra_andamento.percentual_conclusao` não valida `empreendimentos.status`**: checado
+  e sem correlação nenhuma nesta base — por isso não é usado como sinal de erro.
 
-**Achado de qualidade de dados (aplicado):** toda unidade com status bruto `"cancelado"`
-(40 linhas) tem uma venda vinculada com status canônico `"distrato"` — correspondência de
-100%. `"Cancelado"` e `"Distrato"` são duas grafias históricas diferentes para o mesmo
-evento (uma venda que caiu e cuja unidade nunca voltou ao estoque disponível no cadastro),
-não duas categorias reais — diferente das outras inconsistências deste projeto (que só
-variam maiúscula/acento), essa é conceitual. Por isso `negocio/normalize.py:
-norm_status_unidade` funde os dois no mesmo bucket canônico `"distrato"` (não existe mais
-um bucket `"cancelado"` separado): na tela **Dados**, uma unidade que veio da base como
-"Cancelado" já aparece e é filtrável como **DISTRATO**, igual a qualquer outra. Isso
-também significa que, historicamente, um distrato **não** devolvia a unidade para
-"Disponível" na base como veio. A camada de escrita desta aplicação segue a regra
-explícita do briefing em vez do padrão histórico: **todo novo distrato devolve a unidade
-para "Disponível"**, liberando-a para uma nova venda.
+### As 4 perguntas de negócio (premissas)
 
-Verificado também: `unidades.status` e `vendas.status_venda` já são consistentes entre si
-uma vez normalizados (nenhuma unidade "vendida" com venda "distrato" e vice-versa) —
-então a única inconsistência real de estoque é a de `"cancelado"` acima.
+1. **Velocidade de vendas** = vendas ativas (`venda_esta_ativa()`) / unidades cadastradas
+   no empreendimento.
+2. **Risco de estouro de custo** = `custo_realizado_mes − custo_orcado_mes` acumulado por
+   empreendimento (`obra_andamento`).
+3. **Clientes duplicados**: não há — e-mail é a chave distinta (2.691 clientes, 2.691
+   e-mails). O que existe são 196 grupos de homônimos, mostrados como "Nome — Cidade/UF".
+4. **Financeiro reportado vs. recalculado** = `receita_reconhecida − custo_incorrido −
+   despesas_corporativas_rat`; **63** das 562 linhas de `financeiro_mensal` são
+   inconsistentes (~R$ 6,93 milhões acumulados).
 
-**Achado de qualidade de dados:** de todas as `vendas` com `data_distrato` preenchida
-(150 linhas), **37** ainda têm `status_venda` dizendo "ativa" (em alguma grafia) — o
-sistema de origem falhou em atualizar esse campo ao registrar o distrato. `data_distrato`
-é tratado como a fonte de verdade (`negocio/normalize.py:venda_esta_ativa`): uma venda com data de
-distrato preenchida sempre conta como distrato, independente do que `status_venda` diga.
-Isso afeta a pergunta 1 (velocidade de vendas) e a listagem de "vendas ativas" na camada
-de escrita — sem essa correção, seria possível tentar registrar um segundo distrato numa
-venda que, por essa lógica, já não está mais ativa. Na direção oposta, **9** linhas têm
-`status_venda` canonicamente "distrato" mas `data_distrato` **nula** — aqui o status já
-está certo, só falta a data (o sistema de origem não registrou quando aconteceu). Os dois
-achados ficam visíveis na tela **Dados** (aba Vendas), sem duplicar coluna: a coluna
-**STATUS** não mostra o texto bruto, mostra o resultado de `venda_esta_ativa()` — nas 37
-linhas do primeiro achado ela já aparece como "DISTRATO" mesmo com o texto bruto dizendo
-"Ativa" (e é assim que o filtro de Status funciona também, pela mesma regra); e a coluna
-**DATA DE DISTRATO** mostra "SEM REGISTRO" (em vez do "--" genérico, que aqui sempre
-significa "venda ainda ativa") exatamente nas 9 linhas do segundo achado.
-
-**Tratamento de nulos:** auditei `NULL`/string vazia em todas as colunas das 7 tabelas.
-Únicos campos com `NULL` real: `empreendimentos.observacoes` (20 de 22),
-`obra_andamento.observacoes` (537 de 562) — ambos campos de anotação livre, opcionais por
-natureza — e `vendas.data_distrato` (2.056 de 2.206), que é `NULL` para toda venda ainda
-ativa mais as 9 linhas do achado acima (data nunca registrada apesar do distrato). Não há
-chave estrangeira órfã em nenhuma tabela (`unidades.empreendimento_id`,
-`vendas.unidade_id`/`cliente_id` sempre resolvem para uma linha existente). Ou seja: nesta
-base, "valores nulos onde não deveriam existir" não se manifesta como um problema à parte
-das inconsistências já documentadas acima — verificação feita, resultado limpo.
-
-**Observações sem achado sólido por trás (checadas, não viraram "erro" nem tratamento):**
-17 dos 22 empreendimentos estão com status `"Em obras"` há mais de um ano desde o
-lançamento (o mais antigo, 3,3 anos) — poderia indicar obra parada, mas tentar confirmar
-isso contra `obra_andamento.percentual_conclusao` (medição mais recente por
-empreendimento) não deu nenhum sinal: a média de conclusão é praticamente igual entre
-status ("Concluído" 90,2%, "Em obras" 91,4%, "Suspenso" 91,3%) e o único empreendimento em
-`"Lançamento"` (ainda sem obra iniciada, por definição) aparece com **96,9%** concluído.
-Diferente da coluna de custo (que bate 1:1 com `financeiro_mensal`, achado documentado na
-seção Obra abaixo), `percentual_conclusao` não tem relação nenhuma com
-`empreendimentos.status` nesta base — por isso a aplicação não usa essa coluna pra
-validar/sinalizar nada sobre o status do empreendimento.
-
-### As 4 perguntas de negócio (premissas adotadas)
-
-1. **Velocidade de vendas** = vendas ativas (líquidas de distrato) / total de unidades
-   cadastradas no empreendimento (estoque total ofertado, independente do status atual).
-   Uma venda é "ativa" segundo `venda_esta_ativa()`: `data_distrato` preenchida sempre
-   conta como distrato, mesmo nas 37 linhas onde `status_venda` ainda diz "ativa" (achado
-   acima) — sem essa checagem a velocidade de alguns empreendimentos fica superestimada.
-2. **Risco de estouro de custo** = soma de `custo_realizado_mes` menos soma de
-   `custo_orcado_mes` de todas as medições em `obra_andamento`, por empreendimento;
-   positivo = estouro, magnitude = essa diferença acumulada em R$.
-3. **Clientes duplicados** = **não há indícios de cadastro duplicado nesta base.** A
-   primeira versão deste dashboard flagueava homônimos (mesmo nome) como duplicados, mas
-   a base tem e-mail, e o e-mail já é uma chave própria e distinta aqui: 2.691 clientes,
-   2.691 e-mails distintos mesmo após normalizar caixa/espaços — zero repetições. O que
-   existe são 196 grupos de homônimos (pessoas diferentes com o mesmo nome), mostrados no
-   dashboard como "Nome — Cidade/UF" para deixar claro que são cadastros distintos. O
-   dashboard também quantifica o erro que a primeira abordagem cometia: agregar por nome
-   em vez de por uma chave distinta (e-mail) reduz artificialmente o número de "clientes"
-   e infla o ticket médio por cliente (de ~R$ 3,16 milhões para ~R$ 3,32 milhões nesta
-   base) — exatamente a distorção que a pergunta de negócio pede para expor, só que na
-   direção oposta da intuição inicial: o risco aqui era criar duplicidade que não existe,
-   não deixar passar uma que existe.
-4. **Financeiro reportado vs. recalculado**: recalculado = `receita_reconhecida −
-   custo_incorrido − despesas_corporativas_rat`; inconsistente quando
-   `|recalculado − reportado| > R$ 0,01` (tolerância de arredondamento). Achado: 63 das 562
-   linhas de `financeiro_mensal` são inconsistentes, atingindo 29 dos 43 meses e 18 dos 22
-   empreendimentos — uma diferença acumulada (em módulo) de ~R$ 6,93 milhões. Hipótese mais
-   provável (a confirmar): lançamento de custo/despesa em competência diferente da do
-   relatório já publicado, ou uma rubrica que entra no resultado mas não está representada
-   nas colunas desta tabela.
-
-Cada premissa também aparece na própria tela do dashboard, ao lado do resultado — e, para
-as duas perguntas que não viram gráfico (3 e 4), o diagnóstico completo com os números
-acima fica disponível a um clique, no ícone "i" de cada seção (ver abaixo).
+Cada premissa aparece na tela do dashboard ao lado do resultado; para as perguntas 3 e 4
+(sem gráfico), o diagnóstico completo fica no ícone "i" da seção.
 
 ## Dashboard (tela inicial)
 
@@ -251,36 +174,24 @@ formata números com vírgula decimal por padrão, o que quebra CSS/SVG (`height
 
 ## Página Dados (tabelas normalizadas)
 
-Navegador somente-leitura de todas as tabelas de negócio (todas menos `usuarios`),
-`negocio/data_browser.py`, uma aba por tabela, paginação de 25 linhas e **filtros por
-coluna** (troca de aba/página/filtro via `fetch` para `/api/dados-tabela/`, com indicador
-de carregamento -- a mesma preocupação de UX do Assistente, ver abaixo). Formato de
-exibição, aplicado só na hora de montar a página (o dado bruto na base não muda, mesma
-filosofia do resto do app):
+Navegador de todas as tabelas de negócio (menos `usuarios`), `negocio/data_browser.py` —
+aba por tabela, paginação de 25 linhas e **filtro por coluna** (texto sem sensibilidade a
+acento, seletor, faixa numérica, faixa de data), tudo via `fetch` para
+`/api/dados-tabela/` com indicador de carregamento. Formatação só de exibição, dado bruto
+na base não muda: texto maiúsculo sem acentuação (`maiusculo_sem_acento`), data
+`dd/mm/aaaa`, colunas de grafia inconsistente já canonicalizadas (`unidades.status`,
+`empreendimentos.modelo_negocio`), FK mostram nome/identificador em vez do id. A coluna
+STATUS de Vendas e o "SEM REGISTRO" na data de distrato seguem as mesmas regras descritas
+acima.
 
-- Toda coluna de texto em maiúsculo e sem acentuação (`negocio/normalize.py:
-  maiusculo_sem_acento` -- cedilha e vogais acentuadas viram a letra base).
-- Toda coluna de data formatada `dd/mm/aaaa`; nulo vira `--` (datas, `observacoes` e
-  `data_distrato` de venda ativa) ou `SEM REGISTRO` no caso específico de
-  `vendas.data_distrato` quando o status já é distrato mas a data nunca foi registrada
-  (ver achado de qualidade de dados acima).
-- Colunas com mais de uma grafia para o mesmo valor já saem canonicalizadas:
-  `unidades.status` (que também funde `"cancelado"` em `"distrato"`, ver achado acima) e
-  `empreendimentos.modelo_negocio` (`norm_modelo_negocio`) -- essa coluna tinha 9 grafias
-  distintas para só 2 categorias reais ("Obra por Administração" e "SPE Incorporadora"),
-  achado feito ao montar esta página.
-- A coluna STATUS da aba Vendas vai um passo além de canonicalizar grafia: mostra o
-  resultado de `venda_esta_ativa()` (a regra de negócio, não o texto bruto de
-  `status_venda`) -- nas 37 linhas do achado acima ela já aparece "DISTRATO" mesmo com o
-  texto bruto dizendo "Ativa". O filtro de Status segue a mesma regra, então filtrar por
-  "Ativa" já exclui essas 37 linhas.
-- Colunas de chave estrangeira (`empreendimento_id`, `unidade_id`, `cliente_id`) mostram o
-  nome/identificador resolvido, não o número bruto, para ficar legível.
-- **Filtros**: cada aba tem um filtro por coluna, de acordo com o tipo dela -- texto (busca
-  por trecho, sem sensibilidade a acento -- mesmo critério do resto do app), seletor
-  (colunas com poucos valores, incluindo as canonicalizadas/computadas), faixa numérica
-  (mín./máx.) e faixa de data (de/até). Seletor e data aplicam na hora; texto e número
-  aplicam ao clicar "Filtrar" ou apertar Enter (evita perder o foco a cada tecla digitada).
+**Edição (ícone ✎):** só em **Clientes** e **Empreendimentos** — as únicas duas tabelas
+sem regra de negócio associada (`negocio/data_editor.py`). Unidades e Vendas continuam
+somente-leitura aqui: editar `status`/`status_venda` direto bypassaria
+`venda_esta_ativa()`/`UNIDADE_INDISPONIVEL`, então a forma de mudar o estado delas
+continua sendo Nova venda / Registrar distrato, com a regra certa aplicada. Excluir é
+bloqueado (com mensagem) quando há linha vinculada — as FKs desta base não têm constraint
+no banco (`db_constraint=False`), então sem essa checagem a exclusão deixaria
+`unidades.empreendimento_id`/`vendas.cliente_id` órfãos em vez de dar erro.
 
 ## Autenticação — o que É e o que NÃO é
 
@@ -390,26 +301,19 @@ Senha = primeira palavra do `nome` do usuário + `"123"` (definida por `manage.p
 
 ## Deploy (opcional): Render
 
-O teste pede só "rodar localmente" (seção 3 do briefing), então isto é opcional -- um
-plus para quem quiser ver o app publicado, não parte da entrega.
+O teste pede só "rodar localmente" (seção 3 do briefing) — isto é opcional, não parte da
+entrega.
 
-**Por que Render:** builda o `Dockerfile` do repositório direto (sem precisar publicar a
-imagem em nenhum registry separado), é um processo de verdade rodando o tempo todo -- sem
-o timeout de ~10s que provedores serverless gratuitos (ex.: Vercel Hobby) costumam ter,
-o que importa aqui porque o assistente de IA já foi observado levando 10-15s numa
-pergunta só (até `MAX_TENTATIVAS_SQL` (3) chamadas sequenciais ao Gemini). E não exige
-criar nenhum recurso de banco separado: o `data_cambara.sqlite3` já é committado no repo
-e vai junto na imagem, então o app sobe direto em cima dele -- sem etapa de migração,
-firewall ou credencial de banco.
+**Por que Render:** builda o `Dockerfile` direto do repo (sem registry separado), roda
+como processo real sem o timeout de ~10s comum em serverless gratuito (o assistente de IA
+já levou 10-15s numa pergunta), e não exige banco separado — `data_cambara.sqlite3` vai
+junto na imagem.
 
-**Limitação aceita:** o filesystem do container é recriado a cada deploy, então qualquer
-venda/distrato registrado pela aplicação em produção é perdido no próximo deploy (volta
-ao `data_cambara.sqlite3` do repositório). Para uma demonstração isso é uma vantagem, não
-um problema -- garante que o avaliador sempre vê a base no estado esperado. Se um dia for
-preciso persistir escritas de verdade, o caminho já existe: `config/settings.py` aceita
-`AZURE_SQL_SERVER` (+ `_DATABASE`/`_USER`/`_PASSWORD`) para trocar o SQLite por um Azure
-SQL Database de verdade, e `scripts/migrar_para_azure_sql.py` faz a migração inicial dos
-dados -- só não é necessário para o deploy de demonstração no Render.
+**Limitação aceita:** o filesystem do container reseta a cada deploy, então uma
+venda/distrato registrado em produção some no próximo deploy (volta ao
+`data_cambara.sqlite3` do repo — bom pra demonstração, garante que o avaliador sempre vê a
+base esperada). Pra persistir escritas de verdade, `config/settings.py` já aceita
+`AZURE_SQL_SERVER` + `scripts/migrar_para_azure_sql.py`, mas não é necessário aqui.
 
 ### Passo a passo
 

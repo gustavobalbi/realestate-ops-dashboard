@@ -4,7 +4,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 from django.views.decorators.http import require_POST
 
-from . import analytics, auth, data_browser, geo, services
+from . import analytics, auth, data_browser, data_editor, geo, services
 from .forms import LoginForm, NovaVendaForm, PerguntaForm
 from .models import Cliente, Empreendimento, Unidade, Venda
 from .nl_assistant import AssistantError, responder
@@ -238,3 +238,58 @@ def dados_tabela_partial_view(request):
         pagina = 1
     tabela = data_browser.carregar_pagina(chave, pagina, request.GET)
     return render(request, "negocio/_tabela_dados.html", {"tabela": tabela})
+
+
+@auth.login_required
+def dados_registro_view(request):
+    """Fragmento de formulário de criação/edição pra tela Dados -- só pras tabelas
+    editáveis (ver negocio/data_editor.py). GET devolve o formulário (vazio = criar,
+    ?pk=N = editar); POST valida e salva -- sucesso devolve JSON, erro de validação
+    devolve o mesmo fragmento HTML com as mensagens, pra recarregar dentro do modal."""
+    from django.http import HttpResponseForbidden, JsonResponse
+    from django.shortcuts import get_object_or_404
+
+    chave = request.POST.get("tabela") or request.GET.get("tabela", "")
+    definicao = data_editor.TABELAS_EDITAVEIS.get(chave)
+    if not definicao:
+        return HttpResponseForbidden("Esta tabela não é editável.")
+
+    pk = request.POST.get("pk") or request.GET.get("pk")
+    instancia = get_object_or_404(definicao.model, pk=pk) if pk else None
+
+    if request.method == "POST":
+        form = definicao.form_class(request.POST, instance=instancia)
+        if form.is_valid():
+            form.save()
+            return JsonResponse({"ok": True})
+    else:
+        form = definicao.form_class(instance=instancia)
+
+    return render(
+        request,
+        "negocio/_dados_form.html",
+        {"form": form, "tabela": chave, "titulo": data_browser.TABELAS[chave].titulo,
+         "pk": pk, "eh_novo": instancia is None},
+    )
+
+
+@auth.login_required
+@require_POST
+def dados_excluir_view(request):
+    """Exclui um registro de uma tabela editável -- bloqueia (com mensagem) se houver
+    linhas vinculadas, já que as FKs desta base não têm constraint no banco (ver
+    negocio/data_editor.py)."""
+    from django.http import HttpResponseForbidden, JsonResponse
+    from django.shortcuts import get_object_or_404
+
+    chave = request.POST.get("tabela", "")
+    definicao = data_editor.TABELAS_EDITAVEIS.get(chave)
+    if not definicao:
+        return HttpResponseForbidden("Esta tabela não é editável.")
+
+    instancia = get_object_or_404(definicao.model, pk=request.POST.get("pk"))
+    erro = definicao.guard_exclusao(instancia)
+    if erro:
+        return JsonResponse({"ok": False, "erro": erro})
+    instancia.delete()
+    return JsonResponse({"ok": True})

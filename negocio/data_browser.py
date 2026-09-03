@@ -1,12 +1,14 @@
 """
-Página "Dados": navegador somente-leitura e paginado de todas as tabelas de negócio
-(todas menos usuarios), com as colunas de texto formatadas para exibição -- maiúsculo,
-sem acentuação, "--" para nulo -- e as colunas que têm mais de uma grafia para o mesmo
-valor (unidades.status, vendas.status_venda, empreendimentos.modelo_negocio) já
-canonicalizadas via negocio/normalize.py.
+Página "Dados": navegador paginado de todas as tabelas de negócio (todas menos usuarios),
+com as colunas de texto formatadas para exibição -- maiúsculo, sem acentuação, "--" para
+nulo -- e as colunas que têm mais de uma grafia para o mesmo valor (unidades.status,
+vendas.status_venda, empreendimentos.modelo_negocio) já canonicalizadas via
+negocio/normalize.py.
 
-Mesma filosofia do resto da aplicação: nada aqui reescreve o banco. A formatação acontece
-só na hora de montar a página; o valor bruto continua intacto na base.
+Mesma filosofia do resto da aplicação: nada aqui reescreve o banco na hora de LER. A
+formatação acontece só na hora de montar a página; o valor bruto continua intacto na
+base. Duas tabelas (clientes, empreendimentos) também são editáveis por aqui -- ver
+negocio/data_editor.py pra saber por que só essas duas.
 """
 
 from dataclasses import dataclass, field
@@ -15,6 +17,7 @@ from typing import Callable
 from django.core.paginator import Paginator
 from django.db.models import QuerySet
 
+from . import data_editor
 from .models import Cliente, Empreendimento, FinanceiroMensal, ObraAndamento, Unidade, Venda
 from .normalize import (
     CANONICAL_MODELO_NEGOCIO,
@@ -29,6 +32,7 @@ from .normalize import (
 )
 
 LINHAS_POR_PAGINA = 25
+_TABELAS_EDITAVEIS_CHAVES = frozenset(data_editor.TABELAS_EDITAVEIS)
 
 
 def _texto(v) -> str:
@@ -383,6 +387,7 @@ class PaginaTabela:
     filtros: list[FiltroExibicao]
     filtros_valores: dict[str, str]
     filtros_ativos: bool
+    editavel: bool
 
 
 def carregar_pagina(chave: str, pagina: int = 1, params=None) -> PaginaTabela:
@@ -417,4 +422,5 @@ def carregar_pagina(chave: str, pagina: int = 1, params=None) -> PaginaTabela:
         ],
         filtros_valores=filtros_valores,
         filtros_ativos=any(v for v in filtros_valores.values()),
+        editavel=chave in _TABELAS_EDITAVEIS_CHAVES,
     )

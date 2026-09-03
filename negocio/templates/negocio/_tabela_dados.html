@@ -41,16 +41,28 @@
   </form>
   {% endif %}
 
-  <p class="dados-tabela-info">{{ tabela.total_linhas }} linha{{ tabela.total_linhas|pluralize }} --
-    página {{ tabela.pagina_atual }} de {{ tabela.total_paginas }}</p>
+  <div class="dados-tabela-topo">
+    <p class="dados-tabela-info">{{ tabela.total_linhas }} linha{{ tabela.total_linhas|pluralize }} --
+      página {{ tabela.pagina_atual }} de {{ tabela.total_paginas }}</p>
+    {% if tabela.editavel %}
+    <button type="button" class="dados-novo-btn" data-tabela="{{ tabela.chave }}">+ Novo registro</button>
+    {% endif %}
+  </div>
   <div class="dados-tabela-scroll">
     <table>
       <tr>
         {% for coluna in tabela.colunas %}<th>{{ coluna }}</th>{% endfor %}
+        {% if tabela.editavel %}<th class="dados-col-acoes">Ações</th>{% endif %}
       </tr>
       {% for linha in tabela.linhas %}
       <tr>
         {% for celula in linha %}<td>{{ celula }}</td>{% endfor %}
+        {% if tabela.editavel %}
+        <td class="dados-col-acoes">
+          <button type="button" class="dados-acao-editar" title="Editar" data-tabela="{{ tabela.chave }}" data-pk="{{ linha.0 }}">✎</button>
+          <button type="button" class="dados-acao-excluir" title="Excluir" data-tabela="{{ tabela.chave }}" data-pk="{{ linha.0 }}">🗑</button>
+        </td>
+        {% endif %}
       </tr>
       {% endfor %}
     </table>

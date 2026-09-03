@@ -14,4 +14,6 @@ urlpatterns = [
     path("api/unidades-disponiveis/", views.unidades_disponiveis_json, name="unidades_disponiveis_json"),
     path("api/clientes-busca/", views.clientes_busca_json, name="clientes_busca_json"),
     path("api/dados-tabela/", views.dados_tabela_partial_view, name="dados_tabela_partial"),
+    path("api/dados-registro/", views.dados_registro_view, name="dados_registro"),
+    path("api/dados-excluir/", views.dados_excluir_view, name="dados_excluir"),
 ]

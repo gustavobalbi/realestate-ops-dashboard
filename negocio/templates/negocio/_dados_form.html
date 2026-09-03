@@ -1,0 +1,29 @@
+<h3>{% if eh_novo %}Novo registro — {{ titulo }}{% else %}Editar — {{ titulo }}{% endif %}</h3>
+<form class="dados-form" method="post" action="{% url 'dados_registro' %}">
+  {% csrf_token %}
+  <input type="hidden" name="tabela" value="{{ tabela }}">
+  {% if pk %}<input type="hidden" name="pk" value="{{ pk }}">{% endif %}
+
+  {% if form.non_field_errors %}
+  <ul class="dados-form-erros">
+    {% for erro in form.non_field_errors %}<li>{{ erro }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+
+  {% for campo in form %}
+  <div class="dados-form-campo">
+    <label for="{{ campo.id_for_label }}">{{ campo.label }}</label>
+    {{ campo }}
+    {% if campo.errors %}
+    <ul class="dados-form-erros">
+      {% for erro in campo.errors %}<li>{{ erro }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="dados-form-acoes">
+    <button type="submit">Salvar</button>
+    <button type="button" class="dados-form-cancelar secondary">Cancelar</button>
+  </div>
+</form>

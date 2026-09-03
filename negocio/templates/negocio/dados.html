@@ -8,7 +8,8 @@
   texto em maiúsculo e sem acentuação só para exibição -- o valor bruto na base não muda. As colunas com
   mais de uma grafia para o mesmo valor (<code>unidades.status</code>, <code>vendas.status_venda</code>,
   <code>empreendimentos.modelo_negocio</code>) já aparecem canonicalizadas -- ver
-  <code>negocio/normalize.py</code>.</p>
+  <code>negocio/normalize.py</code>. Edição (✎) disponível só em Clientes e Empreendimentos --
+  Unidades/Vendas continuam pelo fluxo de Nova venda/distrato, que já aplica a regra de negócio certa.</p>
 
   <div class="dados-tabs">
     {% for chave, titulo in tabelas %}
@@ -25,11 +26,25 @@
   </div>
 </div>
 
+{# Token fixo (fora do conteúdo trocado por fetch) usado pelo POST de exclusão, que não
+   passa por um form próprio -- editar/criar usa o token do form em si. #}
+<form id="dadosCsrfForm" hidden>{% csrf_token %}</form>
+
+<div class="info-modal-overlay" id="dadosFormOverlay" hidden>
+  <div class="info-modal" role="dialog" aria-modal="true">
+    <button type="button" class="info-modal-close" id="dadosFormClose" aria-label="Fechar">✕</button>
+    <div id="dadosFormBody"></div>
+  </div>
+</div>
+
 <script>
 (function () {
   const tabs = document.querySelectorAll('.dados-tab');
   const content = document.getElementById('dadosContent');
   const loading = document.getElementById('dadosLoading');
+  const formOverlay = document.getElementById('dadosFormOverlay');
+  const formBody = document.getElementById('dadosFormBody');
+  const csrfToken = document.querySelector('#dadosCsrfForm [name=csrfmiddlewaretoken]').value;
   let tabelaAtual = tabs[0]?.dataset.tabela;
 
   function lerFiltros() {
@@ -37,6 +52,72 @@
     if (!form) return {};
     return Object.fromEntries(new FormData(form).entries());
   }
+
+  function paginaAtual() {
+    const wrap = content.querySelector('.dados-tabela-wrap');
+    return wrap ? (parseInt(wrap.dataset.pagina, 10) || 1) : 1;
+  }
+
+  async function abrirFormulario(tabela, pk) {
+    formBody.innerHTML = '<p class="premissa">Carregando...</p>';
+    formOverlay.hidden = false;
+    const params = new URLSearchParams({ tabela });
+    if (pk) params.set('pk', pk);
+    try {
+      const resp = await fetch(`/api/dados-registro/?${params.toString()}`);
+      formBody.innerHTML = await resp.text();
+    } catch (e) {
+      formBody.innerHTML = '<p class="premissa">Não foi possível carregar o formulário.</p>';
+    }
+  }
+
+  function fecharFormulario() {
+    formOverlay.hidden = true;
+    formBody.innerHTML = '';
+  }
+
+  async function excluirRegistro(tabela, pk) {
+    const body = new URLSearchParams({ tabela, pk });
+    try {
+      const resp = await fetch('/api/dados-excluir/', {
+        method: 'POST',
+        headers: { 'X-CSRFToken': csrfToken },
+        body,
+      });
+      const dados = await resp.json();
+      if (dados.ok) {
+        carregar(tabelaAtual, paginaAtual(), lerFiltros());
+      } else {
+        alert(dados.erro || 'Não foi possível excluir este registro.');
+      }
+    } catch (e) {
+      alert('Não foi possível excluir este registro agora.');
+    }
+  }
+
+  document.getElementById('dadosFormClose').addEventListener('click', fecharFormulario);
+  formOverlay.addEventListener('click', evt => {
+    if (evt.target === formOverlay) fecharFormulario();
+  });
+  formBody.addEventListener('click', evt => {
+    if (evt.target.closest('.dados-form-cancelar')) fecharFormulario();
+  });
+  formBody.addEventListener('submit', async evt => {
+    if (!evt.target.classList.contains('dados-form')) return;
+    evt.preventDefault();
+    const form = evt.target;
+    try {
+      const resp = await fetch(form.action, { method: 'POST', body: new FormData(form) });
+      if ((resp.headers.get('Content-Type') || '').includes('application/json')) {
+        fecharFormulario();
+        carregar(tabelaAtual, paginaAtual(), lerFiltros());
+      } else {
+        formBody.innerHTML = await resp.text();
+      }
+    } catch (e) {
+      formBody.innerHTML = '<p class="premissa">Não foi possível salvar agora.</p>';
+    }
+  });
 
   async function carregar(tabela, pagina, filtros) {
     loading.hidden = false;
@@ -58,6 +139,7 @@
   tabs.forEach(btn => {
     btn.addEventListener('click', () => {
       if (btn.classList.contains('active')) return;
+      fecharFormulario();
       tabs.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       tabelaAtual = btn.dataset.tabela;
@@ -84,6 +166,23 @@
   content.addEventListener('click', evt => {
     if (evt.target.closest('.dados-filtro-limpar')) {
       carregar(tabelaAtual, 1, {});
+      return;
+    }
+    const novoBtn = evt.target.closest('.dados-novo-btn');
+    if (novoBtn) {
+      abrirFormulario(novoBtn.dataset.tabela, null);
+      return;
+    }
+    const editarBtn = evt.target.closest('.dados-acao-editar');
+    if (editarBtn) {
+      abrirFormulario(editarBtn.dataset.tabela, editarBtn.dataset.pk);
+      return;
+    }
+    const excluirBtn = evt.target.closest('.dados-acao-excluir');
+    if (excluirBtn) {
+      if (confirm('Tem certeza que deseja excluir este registro? Essa ação não pode ser desfeita.')) {
+        excluirRegistro(excluirBtn.dataset.tabela, excluirBtn.dataset.pk);
+      }
       return;
     }
     const btn = evt.target.closest('[data-ir-pagina]');
