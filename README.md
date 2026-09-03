@@ -273,7 +273,7 @@ Senha = primeira palavra do `nome` do usuário + `"123"` (definida por `manage.p
 | financeiro@cambara-teste.com.br | financeiro | Financeiro Cambará | Financeiro123 |
 | candidato@cambara-teste.com.br | diretoria | Candidato Avaliador | Candidato123 |
 
-## Deploy (opcional): Render
+## Deploy: Render
 
 **Por que Render:** builda o `Dockerfile` direto do repo (sem registry separado), roda
 como processo real sem o timeout de ~10s comum em serverless gratuito (o assistente de IA
