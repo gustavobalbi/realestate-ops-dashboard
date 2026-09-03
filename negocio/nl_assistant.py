@@ -1,31 +1,33 @@
 """
-Natural-language question assistant: text-to-SQL grounded in the real database.
+Assistente de perguntas em linguagem natural: texto-para-SQL apoiado na base real.
 
-Approach (documented per the brief's requirement that the technique be traceable to
-real data, not a model hallucination):
-  1. Gemini receives the schema (with notes about messy status casing) and produces a
-     single read-only SELECT.
-  2. The SELECT is validated (single statement, SELECT-only, no write/pragma keywords)
-     and run against a *read-only* connection, independent of Django's own connection --
-     SQLite opened with mode=ro locally, or a dedicated read-only SQL login on Azure SQL
-     Database in production (see _run_readonly_query). If the engine rejects it (e.g. a
-     column referenced on the wrong table), the real error message is fed back to Gemini
-     to self-correct, up to MAX_TENTATIVAS_SQL attempts, before giving up and surfacing
-     the error.
-  3. The actual result rows are fed back to Gemini, which is instructed to answer using
-     only those rows and to say so plainly if they don't answer the question.
+Abordagem (documentada conforme o briefing pede, pra a técnica ser rastreável aos dados
+reais, não uma alucinação do modelo):
+  1. O Gemini recebe o schema (com notas sobre a grafia de status inconsistente) e gera
+     uma única consulta SELECT somente-leitura.
+  2. O SELECT é validado (uma única instrução, só SELECT, sem palavra-chave de
+     escrita/pragma) e executado numa conexão *somente-leitura*, independente da conexão
+     do próprio Django -- SQLite aberto com mode=ro localmente, ou um login SQL dedicado
+     e somente-leitura no Azure SQL Database em produção (ver _run_readonly_query). Se o
+     motor rejeitar (ex.: coluna referenciada na tabela errada), o erro real é devolvido
+     ao Gemini para autocorreção, até MAX_TENTATIVAS_SQL tentativas, antes de desistir e
+     mostrar o erro.
+  3. As linhas de resultado de verdade são devolvidas ao Gemini, que é instruído a
+     responder usando só essas linhas e a dizer isso claramente se elas não respondem à
+     pergunta.
 
-The UI (negocio/templates/negocio/assistente.html) always shows the generated SQL and the
-raw result table next to the answer, so the evaluator can verify the answer against the
-data themselves rather than trust the prose alone.
+A tela (negocio/templates/negocio/assistente.html) sempre mostra o SQL gerado e a tabela
+de resultado bruta ao lado da resposta, pra o avaliador conferir a resposta contra os
+dados diretamente em vez de confiar só na prosa.
 
-Engine note: locally this runs against SQLite (django.db.backends.sqlite3); on Azure App
-Service it runs against Azure SQL Database (ENGINE "mssql", see config/settings.py). Both
-paths expose an identical noaccent(texto) SQL function to the model, so
-_schema_description() and the prompts below barely need to branch by engine (just the
-date-column note) -- the real per-engine work is in _run_readonly_query. On
-SQL Server, noaccent() is a real T-SQL scalar function created once during setup (see
-scripts/migrar_para_azure_sql.py), not a Python callback like SQLite's create_function.
+Nota sobre o motor: localmente isso roda contra SQLite (django.db.backends.sqlite3); no
+Azure App Service roda contra Azure SQL Database (ENGINE "mssql", ver config/settings.py).
+Os dois caminhos expõem uma função SQL noaccent(texto) idêntica pro modelo, então
+_schema_description() e os prompts abaixo quase não precisam ramificar por motor (só a
+nota sobre coluna de data) -- o trabalho de verdade por motor fica em
+_run_readonly_query. No SQL Server, noaccent() é uma função escalar T-SQL de verdade
+criada uma vez no setup (ver scripts/migrar_para_azure_sql.py), não um callback Python
+como o create_function do SQLite.
 """
 
 from __future__ import annotations

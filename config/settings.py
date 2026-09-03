@@ -1,5 +1,5 @@
 """
-Django settings for the Cambará Empreendimentos technical test project.
+Settings do Django para o projeto Cambará Empreendimentos.
 """
 
 import os
@@ -33,8 +33,8 @@ if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     CSRF_TRUSTED_ORIGINS = [f"https://{host}" for host in ALLOWED_HOSTS if host]
 
-# GEMINI_API_KEY powers the natural-language question assistant (negocio/nl_assistant.py).
-# Free tier from https://aistudio.google.com/apikey is enough for a demo.
+# GEMINI_API_KEY alimenta o assistente de perguntas em linguagem natural (negocio/nl_assistant.py).
+# A camada gratuita de https://aistudio.google.com/apikey é suficiente para uma demonstração.
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite")
 
@@ -46,9 +46,9 @@ INSTALLED_APPS = [
     "negocio",
 ]
 
-# No django.contrib.auth / admin: authentication is implemented directly against the
-# existing `usuarios` table (see negocio/auth.py). This matches the brief's request for
-# a simple, non-production auth layer built from the data that is already in the base.
+# Sem django.contrib.auth / admin: a autenticação é implementada direto contra a tabela
+# `usuarios` já existente (ver negocio/auth.py). Isso atende ao que o briefing pede: uma
+# camada de autenticação simples, não-produção, construída sobre os dados já na base.
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -79,14 +79,14 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# The application reads/writes against a copy of the SQLite base supplied for the test
-# (data_cambara.sqlite3) by default. Business tables are modelled with managed=False so
-# Django never alters their schema; only Django's own session table is migrated -- this
-# holds regardless of which engine below is active.
+# Por padrão a aplicação lê/escreve numa cópia da base SQLite fornecida para o teste
+# (data_cambara.sqlite3). As tabelas de negócio são modeladas com managed=False, então o
+# Django nunca altera o schema delas; só a tabela de sessão do próprio Django é migrada --
+# isso vale independente de qual motor abaixo está ativo.
 #
-# Set AZURE_SQL_SERVER (+ AZURE_SQL_DATABASE/_USER/_PASSWORD) to switch to Azure SQL
-# Database in production (Azure App Service) without touching local dev at all, which
-# keeps using SQLite exactly as documented in the README.
+# Defina AZURE_SQL_SERVER (+ AZURE_SQL_DATABASE/_USER/_PASSWORD) para trocar para Azure
+# SQL Database em produção (Azure App Service) sem mexer no dev local, que continua
+# usando SQLite exatamente como documentado no README.
 if os.environ.get("AZURE_SQL_SERVER"):
     DATABASES = {
         "default": {

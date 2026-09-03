@@ -1,15 +1,16 @@
 """
-Minimal session-based authentication against the existing `usuarios` table.
+Autenticação simples por sessão contra a tabela `usuarios` já existente.
 
-Deliberately NOT using django.contrib.auth: the brief asks for a simple login built
-directly from the `usuarios` table already in the base, explicitly says production-grade
-hashing isn't required, and asks that the limitation be documented instead (see README).
+Deliberadamente SEM django.contrib.auth: o briefing pede um login simples construído
+direto sobre a tabela `usuarios` já na base, diz explicitamente que hash de nível
+produção não é necessário, e pede que a limitação seja documentada em vez disso (ver
+README).
 
-What this does: passwords are hashed with salted SHA-256 (negocio.auth.hash_password) and
-compared to `usuarios.senha_hash`. This is NOT suitable for production -- there's no
-per-user salt rotation, no rate limiting/lockout, and SHA-256 is fast to brute-force
-compared to a real password hash (bcrypt/argon2). It is enough to demonstrate the flow
-end to end, which is what this test asks for.
+Como funciona: senhas são hasheadas com SHA-256 + salt (negocio.auth.hash_password) e
+comparadas com `usuarios.senha_hash`. Isso NÃO é adequado para produção -- não há
+rotação de salt por usuário, nem rate limiting/bloqueio, e SHA-256 é rápido de quebrar
+por força bruta comparado a um hash de senha de verdade (bcrypt/argon2). É suficiente
+para demonstrar o fluxo ponta a ponta, que é o que este teste pede.
 """
 
 import functools
@@ -20,8 +21,8 @@ from django.urls import reverse
 
 from .models import Usuario
 
-# Fixed application-wide salt. In a production system this would be per-user and
-# generated with a proper KDF (bcrypt/argon2/scrypt) instead of being hardcoded.
+# Salt fixo, global pra aplicação inteira. Num sistema de produção seria por usuário e
+# gerado com um KDF de verdade (bcrypt/argon2/scrypt) em vez de fixo no código.
 _SALT = "cambara-teste-tecnico"
 
 
@@ -59,7 +60,7 @@ def get_current_user(request) -> Usuario | None:
 
 
 class CurrentUserMiddleware:
-    """Attaches request.usuario (or None) once per request."""
+    """Anexa request.usuario (ou None) uma vez por requisição."""
 
     def __init__(self, get_response):
         self.get_response = get_response

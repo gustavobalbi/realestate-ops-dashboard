@@ -1,7 +1,8 @@
 """
-Write layer: register a sale, register a distrato (sale cancellation). Each function
-runs inside a transaction and re-checks the business rule against the current row
-(select_for_update) so a concurrent request can't sell the same unit twice.
+Camada de escrita: registrar uma venda, registrar um distrato (cancelamento de venda).
+Cada função roda dentro de uma transação e reconfere a regra de negócio contra a linha
+atual (select_for_update), pra uma requisição concorrente não conseguir vender a mesma
+unidade duas vezes.
 """
 
 import datetime as dt
@@ -13,7 +14,8 @@ from .normalize import UNIDADE_INDISPONIVEL, norm_status_unidade, venda_esta_ati
 
 
 class RegraDeNegocioError(Exception):
-    """Raised when an action would violate a business rule (e.g. selling a sold unit)."""
+    """Levantado quando uma ação violaria uma regra de negócio (ex.: vender uma unidade
+    já vendida)."""
 
 
 @transaction.atomic

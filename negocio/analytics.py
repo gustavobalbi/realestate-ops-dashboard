@@ -1,7 +1,7 @@
 """
-Business-question logic (test brief, section 4). Every function documents the premise it
-adopts where the brief leaves the definition open, and returns plain dicts/lists so views
-and templates stay simple.
+Lógica das perguntas de negócio (briefing, seção 4). Cada função documenta a premissa
+adotada onde o briefing deixa a definição em aberto, e devolve dicts/lists simples pra
+manter views e templates enxutos.
 """
 
 import datetime as dt
@@ -19,7 +19,7 @@ from .normalize import (
     venda_esta_ativa,
 )
 
-MISMATCH_TOLERANCE = 0.01  # R$ rounding tolerance for the financeiro recalculation check
+MISMATCH_TOLERANCE = 0.01  # tolerância de arredondamento (R$) na checagem do recálculo financeiro
 
 
 # ---------------------------------------------------------------------------
@@ -73,11 +73,12 @@ def _unidades_all():
 class BarraVelocidade:
     item: VelocidadeVendas
     pior: bool
-    altura_pct: float  # 0-100, relative to the highest velocidade in the set
+    altura_pct: float  # 0-100, relativo à maior velocidade do conjunto
 
 
 def velocidade_chart(n_piores: int = 3) -> list[BarraVelocidade]:
-    """Descending left-to-right (best first), last n_piores flagged for the red highlight."""
+    """Decrescente da esquerda pra direita (melhor primeiro), os últimos n_piores
+    marcados para o destaque vermelho."""
     itens = sorted(velocidade_vendas(), key=lambda r: r.velocidade, reverse=True)
     maior = itens[0].velocidade if itens else 0.0
     total = len(itens)
@@ -139,15 +140,16 @@ def em_estouro(lista: list[RiscoCusto]) -> list[RiscoCusto]:
 class BarraRisco:
     item: RiscoCusto
     acima_da_media: bool
-    largura_pct: float  # 0-100, relative to the largest overrun magnitude
+    largura_pct: float  # 0-100, relativo à maior magnitude de estouro
 
 
 def risco_chart() -> tuple[list[BarraRisco], float]:
-    """Descending top-to-bottom, highlighting bars above the mean overrun magnitude.
+    """Decrescente de cima pra baixo, com destaque nas barras acima da magnitude média
+    de estouro.
 
-    Returns (barras, media_magnitude).
+    Devolve (barras, media_magnitude).
     """
-    itens = em_estouro(risco_estouro_custo())  # already sorted desc by magnitude
+    itens = em_estouro(risco_estouro_custo())  # já vem ordenado desc por magnitude
     if not itens:
         return [], 0.0
     media = sum(r.magnitude for r in itens) / len(itens)

@@ -40,11 +40,12 @@ def lookup(chave, d):
 
 @register.simple_tag
 def static_v(path):
-    """Like {% static %}, but appends ?v=<mtime> so browsers never serve a stale cached
-    copy after a static file changes -- plain {% static %} URLs are stable, so a browser
-    that already cached style.css keeps using the old version until this forces a new
-    URL. No build step in this project generates hashed filenames, so this is the
-    simplest fix that doesn't require one."""
+    """Como {% static %}, mas acrescenta ?v=<mtime> pra o navegador nunca servir uma
+    cópia velha do cache depois que um arquivo estático muda -- a URL de {% static %}
+    puro é estável, então um navegador que já tem style.css em cache continua usando a
+    versão antiga até isso forçar uma URL nova. Este projeto não tem etapa de build que
+    gere nomes de arquivo com hash, então essa é a correção mais simples que não precisa
+    de uma."""
     url = static(path)
     try:
         mtime = int(os.path.getmtime(settings.BASE_DIR / "static" / path))

@@ -1,28 +1,29 @@
 """
-Brazil outline + lat/lon -> SVG projection for the dashboard's navigation map.
+Contorno do Brasil + projeção lat/lon -> SVG para o mapa de navegação do dashboard.
 
-The outline is assembled from two paths in "Brazil location map.svg" (Wikimedia Commons,
-NordNordWest, CC BY-SA 3.0 --
-https://commons.wikimedia.org/wiki/File:Brazil_location_map.svg): the detailed Atlantic
-coastline ("atlanticCoast", which traces the whole continent, sliced down to just Brazil's
-stretch) and the detailed land border with neighboring countries ("brasilBorder"),
-reversed and appended to close the loop. Neither path alone is a usable Brazil outline: the
-file also has a simpler "brazilMainland" path meant only as a small background swatch --
-its coastline is too coarse and renders as an incorrectly straight diagonal edge on the
-northeast coast at any real display size, which is why this module reconstructs the
-outline from the two detailed paths instead. The two paths' endpoints line up exactly
-(0.0 and 0.12px apart) at Brazil's two coastal tripoints (Uruguay/Atlantic in the south,
-French Guiana/Atlantic in the north), confirmed by nearest-point search across the full
-coastline before splicing -- see the session that built this for the derivation. Points
-are rounded to 2 decimal places (irrelevant at this display scale) to keep the path a
-reasonable size after re-serialization.
+O contorno é montado a partir de dois paths de "Brazil location map.svg" (Wikimedia
+Commons, NordNordWest, CC BY-SA 3.0 --
+https://commons.wikimedia.org/wiki/File:Brazil_location_map.svg): a costa atlântica
+detalhada ("atlanticCoast", que traça o continente inteiro, recortada só pelo trecho do
+Brasil) e a fronteira terrestre detalhada com os países vizinhos ("brasilBorder"),
+invertida e concatenada pra fechar o loop. Nenhum dos dois paths sozinho é um contorno
+utilizável do Brasil: o arquivo também tem um path mais simples, "brazilMainland",
+pensado só como um selo pequeno de fundo -- sua costa é grosseira demais e renderiza como
+uma borda diagonal reta incorreta na costa nordeste em qualquer tamanho real de exibição,
+por isso este módulo reconstrói o contorno a partir dos dois paths detalhados em vez
+disso. Os pontos finais dos dois paths coincidem quase exatamente (0,0 e 0,12px de
+distância) nos dois tripontos costeiros do Brasil (Uruguai/Atlântico ao sul,
+Guiana Francesa/Atlântico ao norte), confirmado por busca do ponto mais próximo em toda a
+costa antes de emendar. Os pontos são arredondados para 2 casas decimais (irrelevante
+nessa escala de exibição) pra manter o path num tamanho razoável depois de
+re-serializado.
 
-Equirectangular projection, geographic bounds documented on that file's page:
-N 6.0degN, S 34.0degS, W 74.5degW, E 32.0degW, over a 2007.8757 x 1984.3955 canvas. The
-resulting formula in project() below was cross-checked against the combined path's own
-bounding box: west/east/north/south extremes land within ~1 degree of Brazil's real
-extremes (Monte Caburaí 5.27degN, Arroio Chuí -33.75degS, Ponta do Seixas -34.79degW,
-Serra do Divisor -73.99degW).
+Projeção equirretangular, limites geográficos documentados na página do arquivo:
+N 6,0°N, S 34,0°S, W 74,5°O, E 32,0°O, sobre um canvas de 2007,8757 x 1984,3955. A
+fórmula resultante em project() abaixo foi conferida contra o próprio bounding box do
+path combinado: os extremos oeste/leste/norte/sul caem a ~1 grau dos extremos reais do
+Brasil (Monte Caburaí 5,27°N, Arroio Chuí -33,75°S, Ponta do Seixas -34,79°O,
+Serra do Divisor -73,99°O).
 """
 
 VIEWBOX = "0 15 1950 1960"
@@ -49,7 +50,7 @@ def project(lat: float, lon: float) -> tuple[float, float]:
     return x, y
 
 
-# Coordinates for every city appearing in `empreendimentos.cidade`.
+# Coordenadas de cada cidade que aparece em `empreendimentos.cidade`.
 CITY_COORDS: dict[str, tuple[float, float]] = {
     "Ananindeua": (-1.3656, -48.3722),
     "Belo Horizonte": (-19.9167, -43.9345),

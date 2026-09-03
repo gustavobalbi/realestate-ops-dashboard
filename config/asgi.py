@@ -1,9 +1,9 @@
 """
-ASGI config for config project.
+Configuração ASGI do projeto config.
 
-It exposes the ASGI callable as a module-level variable named ``application``.
+Expõe o callable ASGI como uma variável de nível de módulo chamada ``application``.
 
-For more information on this file, see
+Mais informações sobre este arquivo em
 https://docs.djangoproject.com/en/6.1/howto/deployment/asgi/
 """
 

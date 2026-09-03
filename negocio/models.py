@@ -1,11 +1,12 @@
 """
-Models mirroring the tables already present in data_cambara.sqlite3.
+Modelos que espelham as tabelas já presentes em data_cambara.sqlite3.
 
-All models are `managed = False`: Django never creates, alters or drops these tables.
-This lets the app read and write against the base exactly as delivered, without
-redesigning the schema (per the test brief). Data-quality normalization (status casing,
-duplicate clients, etc.) is handled in Python at the query layer -- see negocio/normalize.py
-and negocio/analytics.py -- rather than by mutating historical rows.
+Todos os modelos são `managed = False`: o Django nunca cria, altera nem apaga essas
+tabelas. Isso permite que a aplicação leia e escreva na base exatamente como foi
+entregue, sem redesenhar o schema (conforme pedido no briefing). Normalização de
+qualidade de dados (grafia de status, clientes duplicados etc.) é feita em Python na
+camada de leitura -- ver negocio/normalize.py e negocio/analytics.py -- em vez de mutar
+linhas históricas.
 """
 
 from django.db import models

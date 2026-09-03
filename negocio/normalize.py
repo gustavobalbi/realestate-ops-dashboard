@@ -1,13 +1,14 @@
 """
-Canonicalization rules for the messy free-text fields in the base.
+Regras de canonicalização dos campos de texto livre com grafia inconsistente na base.
 
-The source data mixes casing and spelling for the same underlying concept
-(e.g. unit status appears as "vendida", "Vendida", "VENDIDA"). Historical rows are never
-rewritten in place -- callers normalize at read time using the helpers below, and new
-rows written by this app (negocio/services.py) always use the canonical spelling.
+Os dados de origem misturam caixa e grafia para o mesmo conceito (ex.: status de
+unidade aparece como "vendida", "Vendida", "VENDIDA"). Linhas históricas nunca são
+reescritas no lugar -- quem chama essas funções normaliza na hora da leitura usando os
+helpers abaixo, e linhas novas escritas por esta app (negocio/services.py) sempre usam a
+grafia canônica.
 
-STATUS_UNIDADE canon: disponivel | reservada | vendida | distrato
-STATUS_VENDA canon:   ativa | distrato
+STATUS_UNIDADE canônico: disponivel | reservada | vendida | distrato
+STATUS_VENDA canônico:   ativa | distrato
 
 Finding (aplicado): toda unidade com status bruto "cancelado" tem uma venda vinculada com
 status canônico "distrato" (verificado contra as 40 linhas da base -- correspondência de
@@ -71,14 +72,16 @@ def strip_accents(value: str) -> str:
 
 
 def norm_key(value: str | None) -> str:
-    """Lowercase, trimmed, accent-free key used to bucket free-text values."""
+    """Chave minúscula, sem espaço nas pontas e sem acento, usada pra agrupar valores de
+    texto livre no mesmo bucket."""
     if value is None:
         return ""
     return strip_accents(value).strip().lower()
 
 
 def norm_status_unidade(value: str | None) -> str:
-    """Return the canonical bucket key (e.g. 'vendida') for a raw unidades.status value.
+    """Devolve a chave canônica do bucket (ex.: 'vendida') pra um valor bruto de
+    unidades.status.
 
     "cancelado" funde no bucket "distrato" -- ver o "Finding (aplicado)" no docstring do
     módulo: são o mesmo evento de negócio, não duas grafias do mesmo texto."""
@@ -104,11 +107,11 @@ def norm_status_venda(value: str | None) -> str:
 
 
 def venda_esta_ativa(status_venda: str | None, data_distrato: dt.date | None) -> bool:
-    """True if a sale should be counted as active.
+    """True se a venda deve contar como ativa.
 
-    data_distrato is authoritative over status_venda: a filled-in distrato date always
-    means the sale is a distrato, even on the 37 rows where status_venda was never
-    updated and still reads "ativa" (see module docstring).
+    data_distrato manda sobre status_venda: uma data de distrato preenchida sempre
+    significa que a venda é um distrato, mesmo nas 37 linhas onde status_venda nunca foi
+    atualizado e ainda diz "ativa" (ver docstring do módulo).
     """
     if data_distrato:
         return False
@@ -116,14 +119,14 @@ def venda_esta_ativa(status_venda: str | None, data_distrato: dt.date | None) ->
 
 
 def norm_nome_cliente(value: str | None) -> str:
-    """Key used to group probable duplicate client records by name."""
+    """Chave usada pra agrupar cadastros de cliente provavelmente duplicados por nome."""
     key = norm_key(value)
     return " ".join(key.split())
 
 
 def norm_modelo_negocio(value: str | None) -> str:
-    """Canonical bucket key for empreendimentos.modelo_negocio, que tem a mesma grafia
-    inconsistente do resto da base: 'OBRA POR ADM', 'obra por administracao' e 'Obra por
+    """Chave canônica do bucket para empreendimentos.modelo_negocio, que tem a mesma
+    grafia inconsistente do resto da base: 'OBRA POR ADM', 'obra por administracao' e 'Obra por
     Administração' convivem (12 linhas), assim como 'spe incorporadora', 'incorporacao' e
     'Incorporação' (10 linhas) -- duas categorias reais atrás de 9 grafias distintas."""
     key = norm_key(value)

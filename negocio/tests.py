@@ -1,3 +1,4 @@
 from django.test import TestCase
 
-# Create your tests here.
+# Sem testes automatizados neste projeto -- lógica de negócio validada manualmente ponta
+# a ponta (ver README, "Limitações gerais conhecidas").

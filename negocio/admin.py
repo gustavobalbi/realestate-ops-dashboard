@@ -1,3 +1,3 @@
 from django.contrib import admin
 
-# Register your models here.
+# django.contrib.admin não é usado neste projeto (autenticação própria, ver negocio/auth.py).
